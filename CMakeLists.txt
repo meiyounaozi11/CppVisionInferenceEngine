@@ -55,6 +55,9 @@ if(VISION_ENABLE_ONNXRUNTIME)
     list(APPEND CPPVISION_CORE_SOURCES
         include/vision/InferenceEngine.h
         src/InferenceEngine.cpp
+        include/vision/BoundedBlockingQueue.h
+        include/vision/InferencePipeline.h
+        src/InferencePipeline.cpp
     )
 endif()
 
@@ -160,5 +163,21 @@ if(BUILD_TESTING)
         )
 
         add_test(NAME InferenceEngineTests COMMAND InferenceEngineTests)
+
+        add_executable(ConcurrencyPipelineTests
+            tests/ConcurrencyPipelineTests.cpp
+        )
+
+        target_link_libraries(ConcurrencyPipelineTests
+            PRIVATE
+                CppVisionCore
+        )
+
+        target_compile_definitions(ConcurrencyPipelineTests
+            PRIVATE
+                VISION_TEST_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/models"
+        )
+
+        add_test(NAME ConcurrencyPipelineTests COMMAND ConcurrencyPipelineTests)
     endif()
 endif()
