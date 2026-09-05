@@ -63,6 +63,11 @@ bool InferencePipeline::start()
                 worker.join();
             }
         }
+        // Thread creation can fail after only a subset of workers exists. The
+        // normal last-worker decrement cannot observe the missing threads, so
+        // close the result side explicitly before propagating the failure.
+        m_remainingWorkers.store(0);
+        m_results.close();
         throw;
     }
     return true;
@@ -76,6 +81,9 @@ bool InferencePipeline::submit(InferenceTask task)
             return false;
         }
     }
+    // The successful insertion into m_tasks is the submit linearization point.
+    // stop() can close the queue before or after this point; only insertion
+    // before close is accepted and is therefore drained by workers.
     if (!m_tasks.push(std::move(task))) {
         return false;
     }

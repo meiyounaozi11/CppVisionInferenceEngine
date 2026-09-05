@@ -44,6 +44,10 @@ public:
     [[nodiscard]] const std::vector<TensorMetadata> &inputs() const noexcept;
     [[nodiscard]] const std::vector<TensorMetadata> &outputs() const noexcept;
 
+    // Threading contract: for the CPU session configured by initialize(), run
+    // only reads immutable metadata/session members. Input, output and timing
+    // storage are local to this call, so concurrent callers do not share
+    // per-run mutable state.
     [[nodiscard]] Status run(const ImageTensor &input, InferenceResult &result) const;
 
 private:
