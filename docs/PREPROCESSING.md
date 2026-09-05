@@ -36,7 +36,8 @@ them.
 
 ## Tensor Representation
 
-`ImageTensor::shape` is `[1, 3, H, W]`. The data vector stores one complete
+`ImageTensor` is a standalone STL value type; `ImageTensor::shape` is
+`[1, 3, H, W]`. The data vector stores one complete
 plane at a time: red, then green, then blue. It is therefore directly suitable
 for an ONNX tensor adapter without exposing `cv::Mat` beyond preprocessing.
 Original and processed dimensions are retained for later result mapping and

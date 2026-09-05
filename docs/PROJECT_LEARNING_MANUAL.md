@@ -149,3 +149,42 @@ codecs.
    per-channel stddev without introducing a framework.
 3. Sketch an adapter that copies `ImageTensor` into a future inference runtime
    tensor while keeping OpenCV out of the adapter's public API.
+
+## 14. ONNX Runtime CPU Inference (Stage 2)
+
+ONNX is the model interchange format; ONNX Runtime is the execution engine.
+The project uses the official Windows x64 CPU release and selects the CPU
+execution provider only. A model file is not the same thing as a runtime
+library: both the model metadata and the runtime ABI must be checked.
+
+`InferenceEngine` owns `Ort::Env` and `Ort::Session` with RAII. Initialization
+reads allocator-owned input/output names and copies them into `std::string`
+metadata. `run()` validates rank, static dimensions, and element count before
+creating an `Ort::Value` over the `ImageTensor` vector.
+
+The input vector remains alive until `Session::Run()` returns. Output values are
+copied from temporary `Ort::Value` objects into `InferenceResult`, so callers do
+not retain pointers into runtime-managed memory. This is the ownership boundary
+between OpenCV preprocessing and a future model-specific postprocess layer.
+
+The current fixture is a generated identity model with shape `[1, 3, 2, 2]`.
+It proves metadata, tensor creation, CPU execution, deterministic outputs, and
+session recreation; it is not evidence of object detection or production model
+quality.
+
+## 15. Stage 2 Self-Test
+
+1. What is the difference between an ONNX model and ONNX Runtime?
+2. Why are `Ort::Env` and `Ort::Session` owned by the engine with RAII?
+3. Why must tensor backing memory outlive `Session::Run()`?
+4. How are allocator-owned input names made safe for later use?
+5. Why does a deterministic identity model not demonstrate vision accuracy?
+
+### Three practice exercises
+
+1. Write pseudocode that validates an NCHW shape and element count before
+   constructing an `Ort::Value`.
+2. Draw the lifetime graph for `ImageTensor`, `Ort::Value`, `Session::Run`, and
+   copied `InferenceResult` data.
+3. Given a model with one dynamic dimension, explain which dimensions can be
+   accepted and which rank/data-size checks must still fail.

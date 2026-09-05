@@ -32,6 +32,7 @@
       "cacheVariables": {
         "BUILD_TESTING": "ON",
         "VISION_ENABLE_OPENCV": "ON",
+        "VISION_ENABLE_ONNXRUNTIME": "ON",
         "VCPKG_TARGET_TRIPLET": "x64-windows"
       }
     },
@@ -46,6 +47,7 @@
       "cacheVariables": {
         "BUILD_TESTING": "ON",
         "VISION_ENABLE_OPENCV": "ON",
+        "VISION_ENABLE_ONNXRUNTIME": "ON",
         "VCPKG_TARGET_TRIPLET": "x64-windows"
       }
     }

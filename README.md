@@ -4,9 +4,10 @@
 重点展示 Modern C++、STL、RAII、smart pointer、move semantics、concurrency、
 CMake、OpenCV、ONNX Runtime、testing 和 Windows/Linux 工程能力。
 
-## Stage 1 Status
+## Stage 2 Status
 
-当前已完成 Project Foundation 和 OpenCV preprocessing pipeline：
+当前已完成 Project Foundation、OpenCV preprocessing pipeline 和单线程 CPU
+ONNX Runtime inference plumbing：
 
 - C++17 target-based CMake 工程。
 - `CppVisionCore` 静态库。
@@ -16,8 +17,11 @@ CMake、OpenCV、ONNX Runtime、testing 和 Windows/Linux 工程能力。
 - `ImagePreprocessor`：图片加载、stretch resize、BGR→RGB、float scaling、
   mean/std normalization、HWC→CHW。
 - `ImageTensor`：连续 `std::vector<float>` 与 `[1,3,H,W]` shape。
+- `InferenceEngine`：`Ort::Env`/`Ort::Session`、metadata、shape validation 和
+  CPU `Session::Run`。
+- `InferenceResult`：复制后的输出 tensor、shape 与单次 elapsed time。
 
-ONNX Runtime、正式 AI 推理、ThreadPool、队列、mutex、GUI 均为后续 planned
+正式视觉模型、YOLO、ThreadPool、队列、mutex、GPU 和 GUI 均为后续 planned
 work，当前没有声称已经实现。
 
 ## Planned Pipeline
@@ -33,8 +37,8 @@ Implemented 与 Planned。
 
 - C++17 / STL / RAII / smart pointers / move semantics
 - CMake / Ninja / CTest
-- OpenCV（planned dependency）
-- ONNX Runtime（planned dependency）
+- OpenCV 4.12.0（vcpkg manifest）
+- ONNX Runtime 1.29.0 CPU（official Windows x64 release）
 - Windows / Linux（目标平台）
 
 ## Build and Test
@@ -43,7 +47,8 @@ Implemented 与 Planned。
 Visual Studio Community 2026 的 MSVC v145 x64；原有 MinGW presets 仅作为
 legacy/debug reference。
 
-使用 MSVC presets 前设置 `VCPKG_ROOT` 指向本机 vcpkg checkout。
+使用 MSVC presets 前设置 `VCPKG_ROOT` 指向本机 vcpkg checkout，并设置
+`ONNXRUNTIME_ROOT` 指向解压后的官方 CPU release 目录。
 
 MSVC Debug：
 
@@ -78,13 +83,19 @@ cmake --build --preset release-build
 ctest --preset release-test --output-on-failure
 ```
 
+CLI inference smoke（使用仓库内 identity fixture）：
+
+```bash
+CppVisionInferenceEngine.exe --model tests/models/identity_nchw.onnx --image tests/data/tiny.ppm
+```
+
 ## Dependencies
 
-Stage 1 使用 manifest 固定 vcpkg baseline，并通过 `x64-windows` 安装
-OpenCV 4.12.0 的 core/imgproc/imgcodecs 与 JPEG/PNG codec。当前依赖状态与
-ABI 说明记录在
+Stage 2 使用 manifest 固定 vcpkg baseline，并通过 `x64-windows` 安装
+OpenCV 4.12.0 的 core/imgproc/imgcodecs 与 JPEG/PNG codec；ONNX Runtime
+1.29.0 通过 `ONNXRUNTIME_ROOT` 接入。当前依赖状态与 ABI 说明记录在
 [docs/STAGE_0_ENVIRONMENT.md](docs/STAGE_0_ENVIRONMENT.md)。不从随机网站下载
-二进制依赖。ONNX Runtime 仍未安装。
+二进制依赖。
 
 ## Documentation
 
@@ -92,5 +103,6 @@ ABI 说明记录在
 - [Architecture](docs/ARCHITECTURE.md)
 - [Stage 0 Environment](docs/STAGE_0_ENVIRONMENT.md)
 - [Preprocessing](docs/PREPROCESSING.md)
+- [ONNX Runtime](docs/ONNX_RUNTIME.md)
 - [Project Learning Manual](docs/PROJECT_LEARNING_MANUAL.md)
 - [Models Policy](models/README.md)
