@@ -24,6 +24,8 @@ struct InferenceTask {
     // Set by the queue callback immediately after insertion and before the
     // item becomes visible to consumers.
     std::chrono::steady_clock::time_point acceptedAt{};
+    std::chrono::steady_clock::time_point endToEndStartAt{};
+    double preprocessMilliseconds = 0.0;
 
     InferenceTask() = default;
     InferenceTask(std::string id, ImageTensor value, std::string taskMetadata = {})
@@ -52,11 +54,15 @@ struct PipelineResult {
     double workerServiceMilliseconds = 0.0;
     double resultQueueWaitMilliseconds = 0.0;
     double endToEndMilliseconds = 0.0;
+    double totalEndToEndMilliseconds = 0.0;
+    double preprocessMilliseconds = 0.0;
+    double resultHandlingMilliseconds = 0.0;
 
 private:
     friend class InferencePipeline;
     std::chrono::steady_clock::time_point acceptedAt{};
     std::chrono::steady_clock::time_point publishedAt{};
+    std::chrono::steady_clock::time_point endToEndStartAt{};
 };
 
 struct PipelineStats {

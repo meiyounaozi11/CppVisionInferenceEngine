@@ -10,6 +10,8 @@ include(CTest)
 
 option(VISION_ENABLE_OPENCV "Build the OpenCV preprocessing pipeline" OFF)
 option(VISION_ENABLE_ONNXRUNTIME "Build the ONNX Runtime CPU inference engine" OFF)
+set(VISION_STAGE5_MODEL_PATH "" CACHE FILEPATH
+    "Optional representative ONNX model used by Stage 5 correctness tests")
 
 set(CPPVISION_CORE_SOURCES
     include/vision/Logging.h
@@ -114,6 +116,15 @@ if(VISION_ENABLE_ONNXRUNTIME AND VISION_ENABLE_OPENCV)
         app/pipeline_benchmark.cpp
     )
 
+    add_executable(RepresentativeVisionBenchmark
+        app/representative_benchmark.cpp
+    )
+
+    target_link_libraries(RepresentativeVisionBenchmark
+        PRIVATE
+            CppVisionCore
+    )
+
     target_link_libraries(VisionPipelineBenchmark
         PRIVATE
             CppVisionCore
@@ -126,6 +137,15 @@ if(VISION_ENABLE_ONNXRUNTIME AND VISION_ENABLE_OPENCV)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
             "$<TARGET_FILE_DIR:VisionPipelineBenchmark>/onnxruntime_providers_shared.dll"
+    )
+
+    add_custom_command(TARGET RepresentativeVisionBenchmark POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
+            "$<TARGET_FILE_DIR:RepresentativeVisionBenchmark>/onnxruntime.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
+            "$<TARGET_FILE_DIR:RepresentativeVisionBenchmark>/onnxruntime_providers_shared.dll"
     )
 endif()
 
@@ -212,5 +232,36 @@ if(BUILD_TESTING)
         )
 
         add_test(NAME ConcurrencyPipelineTests COMMAND ConcurrencyPipelineTests)
+
+        if(VISION_STAGE5_MODEL_PATH AND EXISTS "${VISION_STAGE5_MODEL_PATH}")
+            add_executable(RepresentativeModelInferenceTest
+                tests/RepresentativeModelInferenceTest.cpp
+            )
+
+            target_link_libraries(RepresentativeModelInferenceTest
+                PRIVATE
+                    CppVisionCore
+            )
+
+            target_compile_definitions(RepresentativeModelInferenceTest
+                PRIVATE
+                    VISION_STAGE5_MODEL_PATH="${VISION_STAGE5_MODEL_PATH}"
+                    VISION_STAGE5_IMAGE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/representative/cat_image.jpg"
+            )
+
+            add_custom_command(TARGET RepresentativeModelInferenceTest POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
+                    "$<TARGET_FILE_DIR:RepresentativeModelInferenceTest>/onnxruntime.dll"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
+                    "$<TARGET_FILE_DIR:RepresentativeModelInferenceTest>/onnxruntime_providers_shared.dll"
+            )
+
+            add_test(NAME RepresentativeModelInferenceTest
+                COMMAND RepresentativeModelInferenceTest)
+        else()
+            message(STATUS "Stage 5 representative model test disabled; set VISION_STAGE5_MODEL_PATH to an existing ONNX file")
+        endif()
     endif()
 endif()

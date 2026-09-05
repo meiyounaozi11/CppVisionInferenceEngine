@@ -2,6 +2,7 @@
 
 #include "vision/Stopwatch.h"
 
+#include <algorithm>
 #include <exception>
 #include <stdexcept>
 #include <utility>
@@ -126,6 +127,12 @@ std::optional<PipelineResult> InferencePipeline::popResult()
             = std::chrono::duration<double, std::milli>(now - result->publishedAt).count();
         result->endToEndMilliseconds
             = std::chrono::duration<double, std::milli>(now - result->acceptedAt).count();
+        if (result->endToEndStartAt != std::chrono::steady_clock::time_point{}) {
+            result->totalEndToEndMilliseconds
+                = std::chrono::duration<double, std::milli>(now - result->endToEndStartAt).count();
+        } else {
+            result->totalEndToEndMilliseconds = result->endToEndMilliseconds;
+        }
     }
     return result;
 }
@@ -192,6 +199,12 @@ void InferencePipeline::workerLoop()
                   .count();
         result.inputQueueWaitMilliseconds = inputQueueWaitMilliseconds;
         result.acceptedAt = task->acceptedAt;
+        result.endToEndStartAt = task->endToEndStartAt;
+        result.preprocessMilliseconds = task->preprocessMilliseconds;
+        result.resultHandlingMilliseconds = std::max(
+            0.0,
+            result.workerServiceMilliseconds
+                - (result.inference.has_value() ? result.inference->elapsedMilliseconds : 0.0));
         result.publishedAt = std::chrono::steady_clock::now();
         m_active.fetch_sub(1);
         if (result.status == PipelineResultStatus::Success) {

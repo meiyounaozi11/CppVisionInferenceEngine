@@ -11,6 +11,9 @@ struct PerformanceSample {
     double workerServiceMilliseconds = 0.0;
     double inferenceMilliseconds = 0.0;
     double resultQueueWaitMilliseconds = 0.0;
+    double totalEndToEndMilliseconds = 0.0;
+    double preprocessMilliseconds = 0.0;
+    double resultHandlingMilliseconds = 0.0;
 };
 
 struct PerformanceSummary {

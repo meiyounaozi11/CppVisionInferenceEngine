@@ -21,7 +21,9 @@ CMakeUserPresets.json
 models/*.onnx
 models/*.ort
 models/*.bin
+models/representative/*.onnx
 assets/generated/
+benchmark_results/*.csv
 benchmark-output/
 
 # Binaries and logs
