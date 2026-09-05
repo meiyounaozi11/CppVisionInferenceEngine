@@ -19,7 +19,11 @@ $expectedImageSha256 = 'D91F623700391ABCDC5B73544CF0C6DBEFFED4B925F8D9438AAD9318
 
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ModelPath), (Split-Path -Parent $ImagePath) | Out-Null
 Invoke-WebRequest -Uri $modelUrl -OutFile $ModelPath
-Invoke-WebRequest -Uri $imageUrl -OutFile $ImagePath
+if (-not (Test-Path -LiteralPath $ImagePath)) {
+    Invoke-WebRequest -Uri $imageUrl -OutFile $ImagePath
+} else {
+    Write-Host "Using existing representative image: $ImagePath"
+}
 
 $modelHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ModelPath).Hash.ToUpperInvariant()
 $imageHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ImagePath).Hash.ToUpperInvariant()
