@@ -28,9 +28,14 @@ struct InferenceResult {
     double elapsedMilliseconds = 0.0;
 };
 
+struct InferenceOptions {
+    int intraOpThreads = 1;
+    int interOpThreads = 1;
+};
+
 class InferenceEngine {
 public:
-    explicit InferenceEngine(std::string modelPath);
+    explicit InferenceEngine(std::string modelPath, InferenceOptions options = {});
     ~InferenceEngine();
 
     InferenceEngine(InferenceEngine &&) noexcept;
@@ -52,6 +57,7 @@ public:
 
 private:
     std::string m_modelPath;
+    InferenceOptions m_options;
     std::unique_ptr<Ort::Env> m_env;
     std::unique_ptr<Ort::Session> m_session;
     std::vector<TensorMetadata> m_inputs;

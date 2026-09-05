@@ -17,10 +17,12 @@ set(CPPVISION_CORE_SOURCES
     include/vision/Status.h
     include/vision/Stopwatch.h
     include/vision/TaskMetadata.h
+    include/vision/PerformanceMetrics.h
     src/Logging.cpp
     src/Status.cpp
     src/Stopwatch.cpp
     src/TaskMetadata.cpp
+    src/PerformanceMetrics.cpp
 )
 
 if(VISION_ENABLE_OPENCV)
@@ -107,6 +109,26 @@ if(VISION_ENABLE_ONNXRUNTIME)
     )
 endif()
 
+if(VISION_ENABLE_ONNXRUNTIME AND VISION_ENABLE_OPENCV)
+    add_executable(VisionPipelineBenchmark
+        app/pipeline_benchmark.cpp
+    )
+
+    target_link_libraries(VisionPipelineBenchmark
+        PRIVATE
+            CppVisionCore
+    )
+
+    add_custom_command(TARGET VisionPipelineBenchmark POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
+            "$<TARGET_FILE_DIR:VisionPipelineBenchmark>/onnxruntime.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
+            "$<TARGET_FILE_DIR:VisionPipelineBenchmark>/onnxruntime_providers_shared.dll"
+    )
+endif()
+
 if(BUILD_TESTING)
     add_executable(VisionCoreTests
         tests/VisionCoreTests.cpp
@@ -118,6 +140,17 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME VisionCoreTests COMMAND VisionCoreTests)
+
+    add_executable(PerformanceMetricsTests
+        tests/PerformanceMetricsTests.cpp
+    )
+
+    target_link_libraries(PerformanceMetricsTests
+        PRIVATE
+            CppVisionCore
+    )
+
+    add_test(NAME PerformanceMetricsTests COMMAND PerformanceMetricsTests)
 
     if(VISION_ENABLE_OPENCV)
         add_executable(ImagePreprocessorTests

@@ -45,8 +45,9 @@ Status ortError(const Ort::Exception &exception)
 
 } // namespace
 
-InferenceEngine::InferenceEngine(std::string modelPath)
-    : m_modelPath(std::move(modelPath))
+InferenceEngine::InferenceEngine(std::string modelPath, InferenceOptions options)
+    : m_modelPath(std::move(modelPath)),
+      m_options(options)
 {
 }
 
@@ -64,12 +65,16 @@ Status InferenceEngine::initialize()
     if (!std::filesystem::exists(m_modelPath)) {
         return Status::error(ErrorCode::InvalidArgument, "model path does not exist: " + m_modelPath);
     }
+    if (m_options.intraOpThreads <= 0 || m_options.interOpThreads <= 0) {
+        return Status::error(ErrorCode::InvalidArgument,
+                             "ORT thread counts must be positive");
+    }
 
     try {
         m_env = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "CppVisionInferenceEngine");
         Ort::SessionOptions options;
-        options.SetIntraOpNumThreads(1);
-        options.SetInterOpNumThreads(1);
+        options.SetIntraOpNumThreads(m_options.intraOpThreads);
+        options.SetInterOpNumThreads(m_options.interOpThreads);
         options.SetExecutionMode(ORT_SEQUENTIAL);
         options.SetGraphOptimizationLevel(ORT_ENABLE_BASIC);
 #ifdef _WIN32

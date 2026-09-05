@@ -4,6 +4,7 @@
 #include "vision/InferenceEngine.h"
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -20,6 +21,9 @@ struct InferenceTask {
     std::string taskId;
     ImageTensor tensor;
     std::string metadata;
+    // Set by the queue callback immediately after insertion and before the
+    // item becomes visible to consumers.
+    std::chrono::steady_clock::time_point acceptedAt{};
 
     InferenceTask() = default;
     InferenceTask(std::string id, ImageTensor value, std::string taskMetadata = {})
@@ -44,6 +48,15 @@ struct PipelineResult {
     std::optional<InferenceResult> inference;
     std::string error;
     double elapsedMilliseconds = 0.0;
+    double inputQueueWaitMilliseconds = 0.0;
+    double workerServiceMilliseconds = 0.0;
+    double resultQueueWaitMilliseconds = 0.0;
+    double endToEndMilliseconds = 0.0;
+
+private:
+    friend class InferencePipeline;
+    std::chrono::steady_clock::time_point acceptedAt{};
+    std::chrono::steady_clock::time_point publishedAt{};
 };
 
 struct PipelineStats {
@@ -58,9 +71,17 @@ public:
     using Processor = std::function<PipelineResult(InferenceTask &&)>;
 
     InferencePipeline(Processor processor, std::size_t workerCount, std::size_t queueCapacity);
+    InferencePipeline(Processor processor,
+                      std::size_t workerCount,
+                      std::size_t inputQueueCapacity,
+                      std::size_t resultQueueCapacity);
     InferencePipeline(std::shared_ptr<const InferenceEngine> engine,
                       std::size_t workerCount,
                       std::size_t queueCapacity);
+    InferencePipeline(std::shared_ptr<const InferenceEngine> engine,
+                      std::size_t workerCount,
+                      std::size_t inputQueueCapacity,
+                      std::size_t resultQueueCapacity);
     ~InferencePipeline();
 
     InferencePipeline(const InferencePipeline &) = delete;

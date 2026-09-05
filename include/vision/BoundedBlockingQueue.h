@@ -25,12 +25,21 @@ public:
 
     bool push(T value)
     {
+        return pushWithCallback(std::move(value), [](T &) noexcept {});
+    }
+
+    template <typename Callback>
+    bool pushWithCallback(T value, Callback &&onAccepted)
+    {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_notFull.wait(lock, [this] { return m_closed || m_items.size() < m_capacity; });
         if (m_closed) {
             return false;
         }
         m_items.emplace_back(std::move(value));
+        // The callback runs after insertion and before the item becomes
+        // visible to consumers. It must be non-blocking and non-throwing.
+        onAccepted(m_items.back());
         lock.unlock();
         m_notEmpty.notify_one();
         return true;

@@ -11,8 +11,16 @@ namespace vision {
 InferencePipeline::InferencePipeline(Processor processor,
                                      const std::size_t workerCount,
                                      const std::size_t queueCapacity)
-    : m_tasks(queueCapacity),
-      m_results(queueCapacity),
+    : InferencePipeline(std::move(processor), workerCount, queueCapacity, queueCapacity)
+{
+}
+
+InferencePipeline::InferencePipeline(Processor processor,
+                                     const std::size_t workerCount,
+                                     const std::size_t inputQueueCapacity,
+                                     const std::size_t resultQueueCapacity)
+    : m_tasks(inputQueueCapacity),
+      m_results(resultQueueCapacity),
       m_processor(std::move(processor))
 {
     if (!m_processor) {
@@ -34,6 +42,20 @@ InferencePipeline::InferencePipeline(std::shared_ptr<const InferenceEngine> engi
           },
           workerCount,
           queueCapacity)
+{
+}
+
+InferencePipeline::InferencePipeline(std::shared_ptr<const InferenceEngine> engine,
+                                     const std::size_t workerCount,
+                                     const std::size_t inputQueueCapacity,
+                                     const std::size_t resultQueueCapacity)
+    : InferencePipeline(
+          [engine = std::move(engine)](InferenceTask &&task) {
+              return processWithEngine(engine, std::move(task));
+          },
+          workerCount,
+          inputQueueCapacity,
+          resultQueueCapacity)
 {
 }
 
@@ -84,7 +106,11 @@ bool InferencePipeline::submit(InferenceTask task)
     // The successful insertion into m_tasks is the submit linearization point.
     // stop() can close the queue before or after this point; only insertion
     // before close is accepted and is therefore drained by workers.
-    if (!m_tasks.push(std::move(task))) {
+    const bool accepted = m_tasks.pushWithCallback(
+        std::move(task), [](InferenceTask &acceptedTask) noexcept {
+            acceptedTask.acceptedAt = std::chrono::steady_clock::now();
+        });
+    if (!accepted) {
         return false;
     }
     m_submitted.fetch_add(1);
@@ -93,7 +119,15 @@ bool InferencePipeline::submit(InferenceTask task)
 
 std::optional<PipelineResult> InferencePipeline::popResult()
 {
-    return m_results.pop();
+    std::optional<PipelineResult> result = m_results.pop();
+    if (result.has_value()) {
+        const auto now = std::chrono::steady_clock::now();
+        result->resultQueueWaitMilliseconds
+            = std::chrono::duration<double, std::milli>(now - result->publishedAt).count();
+        result->endToEndMilliseconds
+            = std::chrono::duration<double, std::milli>(now - result->acceptedAt).count();
+    }
+    return result;
 }
 
 void InferencePipeline::stop() noexcept
@@ -136,8 +170,11 @@ void InferencePipeline::workerLoop()
         }
 
         m_active.fetch_add(1);
+        const auto serviceStart = std::chrono::steady_clock::now();
         PipelineResult result;
         const std::string taskId = task->taskId;
+        const double inputQueueWaitMilliseconds
+            = std::chrono::duration<double, std::milli>(serviceStart - task->acceptedAt).count();
         try {
             result = m_processor(std::move(*task));
         } catch (const std::exception &error) {
@@ -149,6 +186,13 @@ void InferencePipeline::workerLoop()
             result.status = PipelineResultStatus::Failed;
             result.error = "unknown worker exception";
         }
+        result.workerServiceMilliseconds
+            = std::chrono::duration<double, std::milli>(
+                  std::chrono::steady_clock::now() - serviceStart)
+                  .count();
+        result.inputQueueWaitMilliseconds = inputQueueWaitMilliseconds;
+        result.acceptedAt = task->acceptedAt;
+        result.publishedAt = std::chrono::steady_clock::now();
         m_active.fetch_sub(1);
         if (result.status == PipelineResultStatus::Success) {
             m_completed.fetch_add(1);
