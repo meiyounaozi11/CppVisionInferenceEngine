@@ -7,7 +7,9 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -327,11 +329,249 @@ bool pipelineTests()
     return passed;
 }
 
+bool blockedProducerReleasedByStopTest()
+{
+    bool passed = true;
+    auto firstStarted = std::make_shared<std::promise<void>>();
+    std::shared_future<void> firstStartedFuture = firstStarted->get_future().share();
+    std::promise<void> release;
+    std::shared_future<void> releaseFuture = release.get_future().share();
+    vision::InferencePipeline pipeline(
+        [firstStarted, releaseFuture](vision::InferenceTask &&task) {
+            if (task.taskId == "first") {
+                firstStarted->set_value();
+                releaseFuture.wait();
+            }
+            vision::PipelineResult result;
+            result.taskId = task.taskId;
+            result.status = vision::PipelineResultStatus::Success;
+            return result;
+        },
+        1,
+        1);
+    passed &= expect(pipeline.start(), "blocked-producer pipeline should start");
+    passed &= expect(pipeline.submit(vision::InferenceTask("first", tensorFor(1))),
+                     "first blocked-producer task should submit");
+    firstStartedFuture.wait();
+    passed &= expect(pipeline.submit(vision::InferenceTask("second", tensorFor(2))),
+                     "second task should fill input queue");
+
+    std::promise<bool> blockedSubmitResult;
+    std::future<bool> blockedSubmitFuture = blockedSubmitResult.get_future();
+    std::thread producer([&] {
+        blockedSubmitResult.set_value(
+            pipeline.submit(vision::InferenceTask("third", tensorFor(3))));
+    });
+    passed &= expect(blockedSubmitFuture.wait_for(std::chrono::milliseconds(100))
+                         == std::future_status::timeout,
+                     "producer should block on full input queue");
+
+    std::atomic<int> drained{0};
+    std::thread consumer([&] {
+        while (pipeline.popResult().has_value()) {
+            drained.fetch_add(1);
+        }
+    });
+    std::thread stopper([&] { pipeline.stop(); });
+    passed &= expect(!blockedSubmitFuture.get(), "stop should release blocked producer with failure");
+    release.set_value();
+    stopper.join();
+    producer.join();
+    consumer.join();
+    passed &= expect(drained == 2, "accepted tasks should drain after producer is rejected");
+    return passed;
+}
+
+bool submitRacingWithStopTest()
+{
+    bool passed = true;
+    for (int iteration = 0; iteration < 100; ++iteration) {
+        vision::InferencePipeline pipeline(
+            [](vision::InferenceTask &&task) {
+                vision::PipelineResult result;
+                result.taskId = task.taskId;
+                result.status = vision::PipelineResultStatus::Success;
+                return result;
+            },
+            1,
+            1);
+        passed &= expect(pipeline.start(), "race pipeline should start");
+        std::promise<bool> submitResult;
+        std::future<bool> submitFuture = submitResult.get_future();
+        std::thread submitter([&] {
+            submitResult.set_value(
+                pipeline.submit(vision::InferenceTask("race-" + std::to_string(iteration), tensorFor(iteration))));
+        });
+        std::thread stopper([&] { pipeline.stop(); });
+        const bool accepted = submitFuture.get();
+        submitter.join();
+        stopper.join();
+        std::size_t resultCount = 0;
+        while (pipeline.popResult().has_value()) {
+            ++resultCount;
+        }
+        passed &= expect(resultCount == (accepted ? 1U : 0U),
+                         "submit/stop race must not lose an accepted task");
+        const auto statistics = pipeline.stats();
+        passed &= expect(statistics.submitted == (accepted ? 1U : 0U),
+                         "submitted statistics must match accepted race outcome");
+    }
+    return passed;
+}
+
+bool concurrentStopTest()
+{
+    vision::InferencePipeline pipeline(
+        [](vision::InferenceTask &&task) {
+            vision::PipelineResult result;
+            result.taskId = task.taskId;
+            result.status = vision::PipelineResultStatus::Success;
+            return result;
+        },
+        3,
+        2);
+    bool passed = expect(pipeline.start(), "concurrent-stop pipeline should start");
+    std::thread first([&] { pipeline.stop(); });
+    std::thread second([&] { pipeline.stop(); });
+    std::thread third([&] { pipeline.stop(); });
+    first.join();
+    second.join();
+    third.join();
+    passed &= expect(!pipeline.isRunning(), "concurrent stop should leave stable stopped state");
+    return passed;
+}
+
+bool lastWorkerCloseTest()
+{
+    bool passed = true;
+    auto slowStarted = std::make_shared<std::promise<void>>();
+    std::shared_future<void> slowStartedFuture = slowStarted->get_future().share();
+    std::promise<void> releaseSlow;
+    std::shared_future<void> releaseSlowFuture = releaseSlow.get_future().share();
+    vision::InferencePipeline pipeline(
+        [slowStarted, releaseSlowFuture](vision::InferenceTask &&task) {
+            if (task.taskId == "slow") {
+                slowStarted->set_value();
+                releaseSlowFuture.wait();
+            }
+            vision::PipelineResult result;
+            result.taskId = task.taskId;
+            result.status = vision::PipelineResultStatus::Success;
+            return result;
+        },
+        2,
+        2);
+    passed &= expect(pipeline.start(), "last-worker pipeline should start");
+    passed &= expect(pipeline.submit(vision::InferenceTask("slow", tensorFor(1))),
+                     "slow task should submit");
+    slowStartedFuture.wait();
+    passed &= expect(pipeline.submit(vision::InferenceTask("fast", tensorFor(2))),
+                     "fast task should submit");
+    std::future<std::optional<vision::PipelineResult>> firstResult
+        = std::async(std::launch::async, [&] { return pipeline.popResult(); });
+    passed &= expect(firstResult.wait_for(std::chrono::seconds(1)) == std::future_status::ready,
+                     "fast result should arrive before slow worker exits");
+    const auto first = firstResult.get();
+    passed &= expect(first.has_value() && first->taskId == "fast",
+                     "early worker result should be available");
+    std::future<std::optional<vision::PipelineResult>> secondResult
+        = std::async(std::launch::async, [&] { return pipeline.popResult(); });
+    passed &= expect(secondResult.wait_for(std::chrono::milliseconds(100)) == std::future_status::timeout,
+                     "result queue must remain open while slow worker is active");
+    releaseSlow.set_value();
+    passed &= expect(secondResult.get().has_value(), "last worker should publish final result");
+    pipeline.stop();
+    return passed;
+}
+
+bool resultDrainContractTest()
+{
+    constexpr int taskCount = 100;
+    vision::InferencePipeline pipeline(
+        [](vision::InferenceTask &&task) {
+            vision::PipelineResult result;
+            result.taskId = task.taskId;
+            result.status = vision::PipelineResultStatus::Success;
+            return result;
+        },
+        2,
+        1);
+    bool passed = expect(pipeline.start(), "result-drain pipeline should start");
+    std::atomic<int> drained{0};
+    std::thread consumer([&] {
+        while (pipeline.popResult().has_value()) {
+            drained.fetch_add(1);
+        }
+    });
+    for (int index = 0; index < taskCount; ++index) {
+        passed &= expect(pipeline.submit(vision::InferenceTask(std::to_string(index), tensorFor(index))),
+                         "result-drain task should submit");
+    }
+    pipeline.stop();
+    consumer.join();
+    passed &= expect(drained == taskCount, "continuous result drain should permit clean shutdown");
+    return passed;
+}
+
+bool stressTest()
+{
+    constexpr int producerCount = 4;
+    constexpr int tasksPerProducer = 250;
+    constexpr int totalTasks = producerCount * tasksPerProducer;
+    vision::InferencePipeline pipeline(
+        [](vision::InferenceTask &&task) {
+            vision::PipelineResult result;
+            result.taskId = task.taskId;
+            result.status = vision::PipelineResultStatus::Success;
+            return result;
+        },
+        4,
+        2);
+    bool passed = expect(pipeline.start(), "stress pipeline should start");
+    std::set<std::string> resultIds;
+    std::mutex resultMutex;
+    std::atomic<int> resultCount{0};
+    std::thread consumer([&] {
+        while (std::optional<vision::PipelineResult> result = pipeline.popResult()) {
+            std::lock_guard<std::mutex> lock(resultMutex);
+            resultIds.insert(result->taskId);
+            resultCount.fetch_add(1);
+        }
+    });
+    std::vector<std::thread> producers;
+    for (int producerIndex = 0; producerIndex < producerCount; ++producerIndex) {
+        producers.emplace_back([&, producerIndex] {
+            for (int index = 0; index < tasksPerProducer; ++index) {
+                const std::string id = std::to_string(producerIndex) + "-" + std::to_string(index);
+                static_cast<void>(pipeline.submit(vision::InferenceTask(id, tensorFor(index))));
+            }
+        });
+    }
+    for (auto &producer : producers) {
+        producer.join();
+    }
+    pipeline.stop();
+    consumer.join();
+    const auto statistics = pipeline.stats();
+    passed &= expect(statistics.submitted == totalTasks, "stress accepted count should match submissions");
+    passed &= expect(statistics.submitted == statistics.completed + statistics.failed,
+                     "stress accepted count should equal completed plus failed");
+    passed &= expect(resultCount == totalTasks && resultIds.size() == totalTasks,
+                     "stress results should be complete and unique");
+    return passed;
+}
+
 } // namespace
 
 int main()
 {
-    const bool passed = queueTests() && pipelineTests();
+    const bool passed = queueTests() && pipelineTests()
+        && blockedProducerReleasedByStopTest()
+        && submitRacingWithStopTest()
+        && concurrentStopTest()
+        && lastWorkerCloseTest()
+        && resultDrainContractTest()
+        && stressTest();
     if (passed) {
         std::cout << "ConcurrencyPipelineTests passed\n";
         return 0;
