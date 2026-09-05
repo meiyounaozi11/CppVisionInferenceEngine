@@ -15,7 +15,7 @@ if ([string]::IsNullOrWhiteSpace($ImagePath)) {
 $modelUrl = 'https://github.com/onnx/models/raw/refs/heads/main/validated/vision/classification/mobilenet/model/mobilenetv2-7.onnx'
 $imageUrl = 'https://commons.wikimedia.org/wiki/Special:FilePath/Cat_image.jpg'
 $expectedModelSha256 = 'C1C513582D56AFCEFF8516C73804E484C81C6A830712AB6D682253F4A3CD042F'
-$expectedImageSha256 = 'D91F623700391ABCDC5B73544CF0C6DBEFFED4B925F8D9438AAD93183D3FA1E'
+$expectedImageSha256 = 'D91F623700391ABCDC5B73544CF0C6DBEFFED4B925F8D9438AAD93183D3FA1E3'
 
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ModelPath), (Split-Path -Parent $ImagePath) | Out-Null
 Invoke-WebRequest -Uri $modelUrl -OutFile $ModelPath

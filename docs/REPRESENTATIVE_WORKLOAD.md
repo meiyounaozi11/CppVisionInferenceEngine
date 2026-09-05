@@ -24,7 +24,7 @@ Run `scripts/fetch_stage5_assets.ps1` to acquire and verify the model.
 - Author: Mohanraj55
 - License: CC0 1.0 Universal Public Domain Dedication
 - Source URL: `https://commons.wikimedia.org/wiki/File:Cat_image.jpg`
-- SHA-256: `D91F623700391ABCDC5B73544CF0C6DBEFFED4B925F8D9438AAD93183D3FA1E`
+- SHA-256: `D91F623700391ABCDC5B73544CF0C6DBEFFED4B925F8D9438AAD93183D3FA1E3`
 - Original dimensions: 1844×4000; decoded with OpenCV as BGR
 
 The image is resized to 224×224 using the production stretch path. It is a

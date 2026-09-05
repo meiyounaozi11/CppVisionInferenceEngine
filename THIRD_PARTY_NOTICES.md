@@ -42,7 +42,7 @@ kept outside Git. The project does not claim to have trained or authored it.
 - Source: Wikimedia Commons, [File:Cat image.jpg](https://commons.wikimedia.org/wiki/File:Cat_image.jpg).
 - Author: Mohanraj55.
 - License: [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/).
-- SHA-256: `D91F623700391ABCDC5B73544CF0C6DBEFFED4B925F8D9438AAD93183D3FA1E`.
+- SHA-256: `D91F623700391ABCDC5B73544CF0C6DBEFFED4B925F8D9438AAD93183D3FA1E3`.
 
 ### `assets/representative/cat_image_2.jpg`
 
