@@ -2,6 +2,7 @@
 build/
 build-*/
 out/
+vcpkg_installed/
 cmake-build-*/
 CMakeFiles/
 CMakeCache.txt

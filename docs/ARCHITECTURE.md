@@ -1,11 +1,12 @@
 # CppVisionInferenceEngine Architecture
 
-## Stage 0 Boundary
+## Current Boundary (Stage 1)
 
-The current implementation is a dependency-free C++ foundation. It contains a
-small `CppVisionCore` static library with status/error handling, task metadata,
-a monotonic stopwatch, and console logging. No image decoding, OpenCV, model
-loading, inference, worker thread, queue, or GUI is implemented yet.
+`CppVisionCore` contains status/error handling, task metadata, a monotonic
+stopwatch, console logging, and an OpenCV-backed image preprocessing module.
+The preprocessing module is enabled in the MSVC presets and returns a pure STL
+`ImageTensor`. ONNX Runtime, worker threads, queues, and GUI are not
+implemented yet.
 
 ## Target Pipeline (Planned)
 
@@ -23,21 +24,24 @@ Postprocess
 Result
 ```
 
-All boxes above are **Planned** in Stage 0. The implemented foundation only
-provides metadata/status/timing primitives that future stages may use.
+`Input` and `Preprocess` are now partially **Implemented** for local images.
+`Task Queue`, `Inference Worker`, `Postprocess`, and `Result` remain **Planned**.
 
 ## Implemented Targets
 
-- `CppVisionCore`: static library; no third-party dependencies.
+- `CppVisionCore`: static library; the foundation remains dependency-light and
+  optionally links OpenCV for the Stage 1 preprocessing build.
+- `ImagePreprocessor`: OpenCV image load/resize/color/normalization/CHW module
+  enabled by the MSVC presets.
 - `CppVisionInferenceEngine`: console application that validates foundation
-  metadata and exits.
-- `VisionCoreTests`: one deterministic smoke/unit test executable registered
-  with CTest.
+  metadata, or preprocesses an image path supplied on the command line.
+- `VisionCoreTests` and `ImagePreprocessorTests`: deterministic CTest targets
+  sharing `CppVisionCore`.
 
 ## Future Boundaries
 
-- OpenCV will belong to input/preprocess adapters, not the status or metadata
-  core.
+- OpenCV belongs to the input/preprocess adapter and is not exposed as the
+  future inference result type.
 - ONNX Runtime will belong to an inference adapter/worker, not the application
   entry point.
 - Concurrency will be introduced only after a measured workload and an explicit

@@ -28,8 +28,11 @@
       "architecture": "x64",
       "toolset": "v145",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
-        "BUILD_TESTING": "ON"
+        "BUILD_TESTING": "ON",
+        "VISION_ENABLE_OPENCV": "ON",
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
       }
     },
     {
@@ -39,8 +42,11 @@
       "architecture": "x64",
       "toolset": "v145",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
-        "BUILD_TESTING": "ON"
+        "BUILD_TESTING": "ON",
+        "VISION_ENABLE_OPENCV": "ON",
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
       }
     }
   ],

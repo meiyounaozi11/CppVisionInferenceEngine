@@ -108,3 +108,44 @@ selection contract, not a guarantee that every binary is ABI-compatible.
    result object before writing code.
 3. Break the configure/build/test loop deliberately (missing source, missing
    symbol, failing assertion) and classify each failure from its output.
+
+## 12. OpenCV Preprocessing (Stage 1)
+
+`cv::Mat` is a small value handle around reference-counted image storage. It is
+cheap to pass by const reference for a synchronous operation, but the
+preprocessor must not let a future inference layer depend on that storage. The
+result is copied into the owning STL `ImageTensor::data` vector.
+
+Camera and file images are commonly decoded as BGR by OpenCV, while most model
+inputs are specified as RGB. The conversion must happen before channel planes
+are written. A source image is HWC (height, width, channels); the output is
+contiguous CHW inside a batch-shaped `[1, 3, H, W]` tensor.
+
+The pipeline resizes, converts uint8 to float with a configurable scale, then
+applies per-channel `(value - mean) / stddev` normalization. Validation rejects
+empty images, non-3-channel input, invalid dimensions, and zero standard
+deviations before producing output.
+
+OpenCV remains on the input/preprocess side of the architecture. The
+`ImageTensor` value type is the boundary a future ONNX Runtime adapter can
+consume, so model code does not need to know about `cv::Mat` ownership or image
+codecs.
+
+## 13. Stage 1 Self-Test
+
+1. Why must BGR be converted to RGB before writing CHW planes?
+2. How do HWC and CHW differ in contiguous memory order?
+3. Why is `ImageTensor::data` an owning `std::vector<float>` instead of a view
+   into `cv::Mat`?
+4. What does mean/std normalization do, and why must stddev be non-zero?
+5. Why does the vcpkg manifest disable OpenCV default features while enabling
+   JPEG and PNG?
+
+### Three practice exercises
+
+1. Given a 2x1 BGR image, write the six float positions produced by a CHW
+   conversion and normalization.
+2. Design a small validation function for output width, height, scale, and
+   per-channel stddev without introducing a framework.
+3. Sketch an adapter that copies `ImageTensor` into a future inference runtime
+   tensor while keeping OpenCV out of the adapter's public API.
