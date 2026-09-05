@@ -11,8 +11,8 @@
 - ONNX/opset: model variant `-7` (opset 7)
 - Input: `data`, float32 `[1, 3, 224, 224]`
 - Output: `mobilenetv20_output_flatten0_reshape0`, float32 `[1, 1000]`
-- License/attribution: use the ONNX Model Zoo attribution and the model's
-  upstream license terms; the binary is an external artifact and is not
+- License/attribution: the model entry documents Apache 2.0; see
+  `THIRD_PARTY_NOTICES.md`. The binary is an external artifact and is not
   committed to Git.
 
 Run `scripts/fetch_stage5_assets.ps1` to acquire and verify the model.
@@ -21,6 +21,7 @@ Run `scripts/fetch_stage5_assets.ps1` to acquire and verify the model.
 
 - File: `assets/representative/cat_image.jpg`
 - Source: Wikimedia Commons `File:Cat image.jpg`
+- Author: Mohanraj55
 - License: CC0 1.0 Universal Public Domain Dedication
 - Source URL: `https://commons.wikimedia.org/wiki/File:Cat_image.jpg`
 - SHA-256: `D91F623700391ABCDC5B73544CF0C6DBEFFED4B925F8D9438AAD93183D3FA1E`
@@ -29,6 +30,10 @@ Run `scripts/fetch_stage5_assets.ps1` to acquire and verify the model.
 The image is resized to 224×224 using the production stretch path. It is a
 real, freely licensed image used to exercise image decode and preprocessing;
 the Stage 5 objective is systems profiling, not an accuracy claim.
+
+The optional Stage 6 variation `cat_image_2.jpg` is also a CC0 Wikimedia
+Commons image. Its author, source, and hash are recorded in
+`REPRESENTATIVE_WORKLOAD_STAGE6.md` and `THIRD_PARTY_NOTICES.md`.
 
 ## Preprocessing contract
 

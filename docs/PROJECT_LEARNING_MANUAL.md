@@ -457,3 +457,67 @@ shutdown order.
 7. What equality must hold after a soak run, and what do duplicate/missing IDs
    reveal?
 8. Why should the library core avoid per-task `std::cout` logging?
+
+## 23. Stage 8 — Release polish and project freeze
+
+Stage 8 does not add another pipeline feature. It turns measured engineering
+work into a repository that another engineer can clone, configure, test, and
+understand.
+
+### RAII in concurrent systems
+
+RAII covers more than image buffers. `InferenceEngine` owns its ORT environment
+and session, each pipeline owns its queues and `std::thread` objects, and the
+destructor uses the same `noexcept stop()` cleanup path. A destructor cannot
+allow a joinable worker to escape; the lifecycle contract must make joining
+deterministic.
+
+### Lifecycle state machines and public API stability
+
+`Created → Running → Stopping → Stopped` is a caller-visible contract, not an
+implementation detail. Named `PipelineConfig`, explicit state, move-only task
+ownership, and structured errors make valid use visible in signatures. The
+bounded queue template remains under `vision/detail` so internal scheduling
+choices are not accidentally frozen as public API.
+
+### Fault containment
+
+Synchronous failures return `Status`; asynchronous failures retain task ID,
+`ErrorCode`, `FailureStage`, and a human-readable message. Catching exceptions
+at worker entry points prevents one bad image, model, or callback from reaching
+`std::terminate`.
+
+### Soak testing and memory high-water marks
+
+A short CTest run proves repeatable behavior at small scale. The explicit soak
+proves accounting over many tasks: accepted work must equal completed plus
+failed work, with no duplicate or missing IDs. Working-set high-water marks
+must be interpreted with allocator caching in mind. A warm/final value above
+the initial value is not by itself a leak; the warning sign is unbounded growth
+over a repeated workload.
+
+### Bounded resource usage and logging
+
+Queue capacities bound queued ownership, but decoded `cv::Mat` values can be
+much larger than compressed JPEGs. Memory estimates therefore include active
+decode workers, queue contents, tensors, results, and runtime overhead. Library
+code returns structured errors instead of printing per-task messages; a CLI or
+application owns aggregate logging policy.
+
+### Release attribution and reproducibility
+
+A public project must distinguish source code, downloaded model artifacts,
+small committed fixtures, and generated benchmark output. SHA-256 checks,
+repository-relative paths, environment-driven dependency roots, third-party
+notices, and a license decision record make a fresh checkout auditable.
+
+### Stage 8 self-test
+
+1. Which files should be tracked, ignored, or downloaded at setup time?
+2. Why should benchmark observations include machine, model, and build mode?
+3. Why is a license decision separate from third-party dependency notices?
+4. Why can a final working set above the initial value be allocator caching?
+5. What does `accepted == completed + failed` prove in a soak run?
+6. Why should a result consumer be active during graceful shutdown?
+7. Which API choices expose ownership without exposing queue internals?
+8. What evidence is still missing before claiming cross-platform support?
