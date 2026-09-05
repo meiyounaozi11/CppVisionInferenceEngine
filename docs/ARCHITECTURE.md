@@ -3,8 +3,8 @@
 ## Production boundary
 
 `CppVisionCore` owns status/error values, input preprocessing, the CPU
-ONNX Runtime adapter, bounded queues, worker pipelines, and post-consumer
-metrics. Applications own input sources, result consumption, logging policy,
+ONNX Runtime adapter, bounded queues, worker pipelines, and thread-safe
+metrics snapshots. Applications own input sources, result consumption, logging policy,
 and process-level configuration selection. The core never prints one message
 per task.
 

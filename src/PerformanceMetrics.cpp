@@ -7,35 +7,40 @@ namespace vision {
 
 void PerformanceMetrics::add(PerformanceSample sample)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_samples.push_back(sample);
 }
 
 void PerformanceMetrics::reset() noexcept
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_samples.clear();
 }
 
 std::size_t PerformanceMetrics::sampleCount() const noexcept
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_samples.size();
 }
 
-const std::vector<PerformanceSample> &PerformanceMetrics::samples() const noexcept
+std::vector<PerformanceSample> PerformanceMetrics::samples() const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_samples;
 }
 
 PerformanceSummary PerformanceMetrics::endToEndSummary() const
 {
     PerformanceSummary summary;
-    summary.count = m_samples.size();
-    if (m_samples.empty()) {
+    const std::vector<PerformanceSample> snapshot = samples();
+    summary.count = snapshot.size();
+    if (snapshot.empty()) {
         return summary;
     }
 
     std::vector<double> values;
-    values.reserve(m_samples.size());
-    for (const PerformanceSample &sample : m_samples) {
+    values.reserve(snapshot.size());
+    for (const PerformanceSample &sample : snapshot) {
         values.push_back(sample.endToEndMilliseconds);
     }
     std::sort(values.begin(), values.end());

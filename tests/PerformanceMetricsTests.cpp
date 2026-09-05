@@ -2,6 +2,8 @@
 
 #include <cmath>
 #include <iostream>
+#include <thread>
+#include <vector>
 
 namespace {
 
@@ -39,6 +41,19 @@ int main()
                      "percentiles should be ordered");
     metrics.reset();
     passed &= expect(metrics.sampleCount() == 0U, "reset should clear samples");
+
+    std::vector<std::thread> writers;
+    for (int writer = 0; writer < 4; ++writer) {
+        writers.emplace_back([&metrics] {
+            for (int index = 0; index < 100; ++index) {
+                metrics.add({1.0});
+            }
+        });
+    }
+    for (auto &writer : writers) writer.join();
+    const auto snapshot = metrics.samples();
+    passed &= expect(snapshot.size() == 400U && metrics.sampleCount() == 400U,
+                     "concurrent metric writes should produce a consistent snapshot");
     if (passed) {
         std::cout << "PerformanceMetricsTests passed\n";
         return 0;

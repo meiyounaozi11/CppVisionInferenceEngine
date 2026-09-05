@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <mutex>
 #include <vector>
 
 namespace vision {
@@ -33,10 +34,12 @@ public:
     void reset() noexcept;
 
     [[nodiscard]] std::size_t sampleCount() const noexcept;
-    [[nodiscard]] const std::vector<PerformanceSample> &samples() const noexcept;
+    // Returns a stable value snapshot; callers never observe internal storage.
+    [[nodiscard]] std::vector<PerformanceSample> samples() const;
     [[nodiscard]] PerformanceSummary endToEndSummary() const;
 
 private:
+    mutable std::mutex m_mutex;
     std::vector<PerformanceSample> m_samples;
 };
 
