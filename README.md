@@ -1,124 +1,122 @@
 # CppVisionInferenceEngine
 
-A production-oriented C++17 image inference pipeline built with ONNX Runtime
-and OpenCV, featuring bounded backpressure, parallel preprocessing,
-configurable workers, lifecycle-safe shutdown, and reproducible performance
-profiling.
+一个面向实际工程使用的 C++17 图像推理流水线，基于 ONNX Runtime 和
+OpenCV，包含有界背压、并行预处理、可配置 worker、生命周期安全关闭以及
+可复现的性能分析。
 
-Status: `READY FOR PORTFOLIO`  
-Core engine: `FROZEN`
+项目状态：`READY FOR PORTFOLIO`  
+核心引擎：`FROZEN`
 
-## Overview
+## 项目概览
 
-This project explores the engineering boundary between image preparation and
-CPU inference. It turns compressed images into model-ready NCHW tensors, moves
-them through bounded queues, runs a shared ONNX Runtime CPU session from an
-inference worker pool, and returns task-correlated results with structured
-failure information. The core is a library; the command-line programs are
-small demonstrations, benchmarks, and validation tools.
+本项目研究图像准备阶段与 CPU 推理阶段之间的工程边界：将压缩图像转换为
+模型所需的 NCHW tensor，通过有界队列传递数据，使用共享的 ONNX Runtime
+CPU session 和推理 worker pool 执行推理，并返回带任务 ID 和结构化错误信息
+的结果。核心部分是可复用库，命令行程序用于演示、benchmark 和验证。
 
-## Highlights
+## 主要特性
 
-- C++17, target-based CMake, RAII, value ownership, and move semantics.
-- OpenCV decode and preprocessing with an explicit tensor contract.
-- ONNX Runtime CPU execution with model metadata and shape validation.
-- Bounded preparation, inference, and result queues with backpressure.
-- Parallel JPEG decode/preprocessing and configurable inference workers.
-- `Created → Running → Stopping → Stopped` single-use lifecycle.
-- Graceful drain, thread-safe statistics, structured error codes, and worker
-  exception containment.
-- Unit, integration, fault, lifecycle, multi-instance, and soak coverage.
-- Representative MobileNetV2 profiling with saved configuration and timing
-  observations.
+- C++17、基于 target 的 CMake、RAII、值语义和 move 语义。
+- 使用 OpenCV 完成图像解码和预处理，并明确 tensor contract。
+- 基于 ONNX Runtime CPU Execution Provider，支持模型元数据和 shape 校验。
+- preparation、inference、result 三个阶段均使用有界队列和背压。
+- 并行 JPEG 解码/预处理，以及可配置的 inference worker 数量。
+- `Created → Running → Stopping → Stopped` 单次使用生命周期。
+- 优雅 drain、线程安全统计、结构化错误码和 worker 异常隔离。
+- 覆盖 unit、integration、fault、lifecycle、multi-instance 和 soak 测试。
+- 使用 MobileNetV2 完成代表性 workload profiling，并保存配置与观测数据。
 
-## Architecture
+## 架构
 
 ```text
-Image Source
-     |
-     v
+图像来源
+    |
+    v
 +-------------------------+
-| Bounded Preparation Q   |  backpressure
+| 有界 Preparation Queue  |  背压
 +-------------------------+
-     |
-     v
-Decode + Preprocess Workers       move-owned ImageTensor
-     |
-     v
+    |
+    v
+解码 + 预处理 Workers              move-owned ImageTensor
+    |
+    v
 +-------------------------+
-| Bounded Inference Q     |  backpressure
+| 有界 Inference Queue    |  背压
 +-------------------------+
-     |
-     v
+    |
+    v
 ONNX Runtime CPU Workers
-     |
-     v
+    |
+    v
 +-------------------------+
-| Bounded Result Q        |  consumer drains continuously
+| 有界 Result Queue       |  Consumer 持续 drain
 +-------------------------+
-     |
-     v
-Consumer owns PipelineResult values
+    |
+    v
+Consumer 持有 PipelineResult
 ```
 
-The normal shutdown direction is: stop preparation, continue consuming
-inference results, stop inference, then drain the closed result queue. Details
-are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+正常关闭方向为：先停止 preparation，持续消费 inference 结果，再停止
+inference，最后 drain 已关闭的 result queue。详细说明见
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
-## Performance evidence
+关键设计关系：
 
-| Stage | Workload | Throughput |
+- 有界 queue 提供背压，限制排队资源使用。
+- ImageTensor 和 task 通过 move 转移所有权，避免不明确的共享所有权。
+- 停止信号沿生产者到消费者方向传播，已接受的工作会被 drain。
+
+## 性能证据
+
+| 阶段 | Workload | 吞吐量 |
 |---|---|---:|
-| Stage 5 serial baseline | MobileNetV2, serial file/decode path | ~25.69 images/s |
-| Stage 6 bounded parallel preparation | MobileNetV2, 4 decode + 4 inference workers | ~66.00 images/s |
-| Improvement | Same representative workload | ~2.57× |
-| Stage 7 fixed regression smoke | Release, same measured profile | 68.0658 images/s |
+| Stage 5 串行 baseline | MobileNetV2，串行文件/解码路径 | 约 25.69 images/s |
+| Stage 6 有界并行 preparation | MobileNetV2，4 decode + 4 inference workers | 约 66.00 images/s |
+| 提升 | 相同代表性 workload | 约 2.57× |
+| Stage 7 固定回归 smoke | Release，相同测量配置 | 68.0658 images/s |
 
-Measured on an Intel i5-12600K with MobileNetV2 and the ONNX Runtime CPU
-execution provider. These are observations for one machine, model, and build;
-they are not universal benchmark claims.
+数据在 Intel i5-12600K、MobileNetV2 和 ONNX Runtime CPU Execution Provider
+上测得。这些是单台机器、单个模型和单种 build 配置下的观测值，不是通用
+benchmark 保证。
 
-The engineering path was:
+性能工程过程如下：
 
 ```text
 Microbenchmark
     ↓
-Representative MobileNetV2 profiling
+代表性 MobileNetV2 profiling
     ↓
-Serial JPEG decode identified as the end-to-end bottleneck
+发现串行 JPEG 解码是端到端瓶颈
     ↓
-Bounded parallel preparation stage
+引入有界并行 preparation stage
     ↓
-E2E throughput improved from 25.69 to 66.00 images/s
+E2E 吞吐量从 25.69 提升到 66.00 images/s
 ```
 
-Identity-model measurements remain useful for queue and lifecycle plumbing;
-MobileNetV2 is the representative image workload. They must not be compared
-as if they measured the same cost.
+Identity model 的测量主要用于 queue 和生命周期 plumbing；MobileNetV2 才是
+代表性图像 workload。两者测量的计算成本不同，不应直接混合比较。
 
-## Requirements and dependency setup
+## 环境要求与依赖配置
 
-The validated release path is Windows x64 with Visual Studio/MSVC, CMake,
-vcpkg, OpenCV, and the official ONNX Runtime Windows CPU package.
+已验证的 release 路径为 Windows x64、Visual Studio/MSVC、CMake、vcpkg、
+OpenCV，以及官方 ONNX Runtime Windows CPU package。
 
-1. Clone this repository and open a PowerShell prompt at its root.
-2. Install or bootstrap vcpkg, then set `VCPKG_ROOT` to that checkout. The
-   manifest pins the vcpkg baseline and requests OpenCV's core, imgproc,
-   imgcodecs, JPEG, and PNG features.
-3. Download and extract the ONNX Runtime Windows x64 CPU package, then set
-   `ONNXRUNTIME_ROOT` to its extracted root. The validated package version was
-   1.29.0; using another version requires a fresh configure and runtime check.
-4. Configure and build with one of the MSVC presets below.
+1. Clone 本仓库，并在仓库根目录打开 PowerShell。
+2. 安装或 bootstrap vcpkg，将 `VCPKG_ROOT` 设置为 vcpkg checkout 路径。
+   manifest 会固定 vcpkg baseline，并请求 OpenCV 的 core、imgproc、
+   imgcodecs、JPEG 和 PNG features。
+3. 下载并解压 ONNX Runtime Windows x64 CPU package，将 `ONNXRUNTIME_ROOT`
+   设置为解压目录。记录使用的 package 版本为 1.29.0；使用其他版本时，
+   需要重新 configure 并执行运行时验证。
+4. 使用下面的 MSVC preset configure 和 build。
 
-The presets intentionally read both paths from environment variables rather
-than embedding a machine directory. The exact Visual Studio generator/toolset
-in the MSVC presets is the one used for the recorded validation; other MSVC
-generations can use the same CMake cache options with a matching generator.
+preset 只从环境变量读取路径，不包含作者电脑的绝对路径。MSVC preset 中
+的 Visual Studio generator/toolset 与记录验证所用配置一致；其他 MSVC 版本
+也可以使用相同的 CMake cache 选项，但需要匹配对应 generator。
 
-## Quick start
+## 快速开始
 
-Set the environment variables once per PowerShell session (replace the
-placeholders with local paths):
+每次 PowerShell 会话设置环境变量（将占位符替换为本机路径）：
 
 ```powershell
 $env:VCPKG_ROOT = (Resolve-Path '<path-to-vcpkg>').Path
@@ -126,13 +124,13 @@ $env:ONNXRUNTIME_ROOT = (Resolve-Path '<path-to-onnxruntime-windows-x64>').Path
 & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat"
 ```
 
-Acquire the ignored representative model and verify its SHA-256:
+获取被忽略的代表性模型并校验 SHA-256：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\fetch_stage5_assets.ps1
 ```
 
-Build and test Release:
+配置、构建并运行 Release 测试：
 
 ```powershell
 cmake --preset msvc-release
@@ -140,8 +138,7 @@ cmake --build --preset msvc-release-build
 ctest --preset msvc-release-test --output-on-failure
 ```
 
-Run a real MobileNetV2 inference using the downloaded model and the tracked
-representative image:
+使用下载的模型和仓库中的代表性图像执行真实 MobileNetV2 inference：
 
 ```powershell
 & .\out\build\msvc-release\Release\CppVisionInferenceEngine.exe `
@@ -149,15 +146,14 @@ representative image:
   --image .\assets\representative\cat_image.jpg
 ```
 
-The tracked identity fixture provides a small deterministic path for tests and
-does not require a downloaded model. Full OpenCV/ONNX Runtime validation is
-documented for Windows/MSVC; the legacy Ninja presets remain useful for the
-dependency-free foundation path.
+被跟踪的 identity fixture 提供不需要下载模型的确定性测试路径。完整的
+OpenCV/ONNX Runtime 验证针对 Windows/MSVC；不依赖这些外部依赖的基础路径
+仍可使用 legacy Ninja presets。
 
-## Public API example
+## Public API 示例
 
-This is the shortest complete inference-pipeline pattern. `submit()` transfers
-the tensor into the task, and `popResult()` returns an owned result.
+下面是最短的完整 inference pipeline 使用方式。`submit()` 将 tensor 的
+所有权转移到 task，`popResult()` 返回由调用方持有的 result。
 
 ```cpp
 #include <memory>
@@ -185,15 +181,13 @@ if (!result || result->status != vision::PipelineResultStatus::Success) return 1
 pipeline.stop();
 ```
 
-Production callers should keep consuming results while work is active and
-through shutdown because the result queue is bounded. Synchronous failures use
-`Status`; asynchronous failures retain the task ID, `ErrorCode`,
-`FailureStage`, and human-readable message.
+生产调用方应在处理期间以及关闭过程中持续消费结果，因为 result queue 是
+有界的。同步失败通过 `Status` 返回；异步失败保留 task ID、`ErrorCode`、
+`FailureStage` 和可读错误信息。
 
-## Tests, benchmarks, and soak
+## 测试、Benchmark 与 Soak
 
-CTest is intentionally fast and contains unit, integration, lifecycle, fault,
-and metrics coverage:
+CTest 保持快速，包含 unit、integration、lifecycle、fault 和 metrics 覆盖：
 
 ```powershell
 cmake --preset msvc-debug
@@ -205,7 +199,7 @@ cmake --build --preset msvc-release-build
 ctest --preset msvc-release-test --output-on-failure
 ```
 
-Run the Stage 6 optimized representative benchmark after fetching assets:
+获取模型后运行 Stage 6 优化后的代表性 benchmark：
 
 ```powershell
 & .\out\build\msvc-release\Release\Stage6OptimizationBenchmark.exe `
@@ -216,11 +210,10 @@ Run the Stage 6 optimized representative benchmark after fetching assets:
   --ort-intra 1 --ort-inter 1
 ```
 
-`RepresentativeVisionBenchmark` is retained as the Stage 5 serial
-end-to-end comparison tool; `Stage6OptimizationBenchmark` exercises the
-bounded preparation stage used by the optimized observation.
+`RepresentativeVisionBenchmark` 保留为 Stage 5 串行端到端对照工具；
+`Stage6OptimizationBenchmark` 用于测试优化观测中使用的有界 preparation stage。
 
-Run the explicit Release soak (not part of ordinary CTest):
+运行显式 Release soak（不属于普通 CTest）：
 
 ```powershell
 & .\out\build\msvc-release\Release\vision_soak_test.exe `
@@ -229,69 +222,80 @@ Run the explicit Release soak (not part of ordinary CTest):
   --tasks 10000 --decode-workers 2 --inference-workers 2 --queue-capacity 2
 ```
 
-The soak reports submitted/accepted/completed/failed, duplicate IDs, missing
-IDs, and Windows working-set observations. The required accounting invariant
-is `accepted == completed + failed`.
+soak 会报告 submitted/accepted/completed/failed、duplicate IDs、missing IDs
+以及 Windows working-set 观测。必须满足：
+`accepted == completed + failed`。
 
-Stage 5 and Stage 6 benchmark matrices are repeatable through
-`scripts/run_stage5_benchmarks.ps1` and `scripts/run_stage6_benchmarks.ps1`.
-Their CSV output belongs in ignored `benchmark_results/` and is machine/model
-dependent.
+Stage 5 和 Stage 6 的 benchmark matrix 可通过
+`scripts/run_stage5_benchmarks.ps1` 和 `scripts/run_stage6_benchmarks.ps1`
+重复运行。CSV 输出位于被忽略的 `benchmark_results/`，结果取决于机器和模型。
 
-## Repository layout
+## 仓库目录
 
 ```text
-include/vision/     public API (`vision/detail` is implementation-only)
-src/                library implementation
-app/                CLI, benchmarks, and soak executable
-tests/              unit/integration tests and small deterministic fixtures
-scripts/            asset and benchmark automation
-docs/               canonical design, evidence, and historical Stage records
-assets/             small committed representative fixtures
-models/             model policy; downloaded binaries are ignored
+include/vision/     public API（vision/detail 仅供内部实现）
+src/                库实现
+app/                CLI、benchmark 和 soak executable
+tests/              unit/integration 测试及小型确定性 fixture
+scripts/            asset 和 benchmark automation
+docs/               当前设计、证据和历史 Stage 记录
+assets/             提交到仓库的小型代表性 fixture
+models/             模型策略；下载的二进制模型被忽略
 ```
 
-## Documentation
+## 文档
 
-- [Architecture and ownership](docs/ARCHITECTURE.md)
-- [Representative workload and preprocessing](docs/REPRESENTATIVE_WORKLOAD.md)
-- [Performance baseline](docs/PERFORMANCE_BASELINE.md)
-- [Stage 7 production hardening](docs/STAGE_7_PRODUCTION_HARDENING.md)
-- [Project learning manual](docs/PROJECT_LEARNING_MANUAL.md)
-- [Project summary and interview evidence](docs/PROJECT_SUMMARY.md)
-- [Third-party notices](THIRD_PARTY_NOTICES.md)
-- [Change log](CHANGELOG.md)
+- [架构与所有权](docs/ARCHITECTURE.md)
+- [代表性 workload 与预处理](docs/REPRESENTATIVE_WORKLOAD.md)
+- [性能 baseline](docs/PERFORMANCE_BASELINE.md)
+- [Stage 7 生产加固](docs/STAGE_7_PRODUCTION_HARDENING.md)
+- [项目学习手册](docs/PROJECT_LEARNING_MANUAL.md)
+- [项目总结与面试证据](docs/PROJECT_SUMMARY.md)
+- [第三方声明](THIRD_PARTY_NOTICES.md)
+- [变更记录](CHANGELOG.md)
 
-Stage 3–7 documents remain available as historical engineering records; they
-are not required reading for the quick-start path.
+Stage 3–7 文档作为历史工程记录保留，不是快速开始所必需的阅读材料。
 
-## Known limitations
+## 测试覆盖
 
-- The validated integration path is Windows/MSVC with ONNX Runtime CPU EP.
-- Linux and other compiler/toolchain combinations are not validated here.
-- No GPU, CUDA, DirectML, or other execution provider is included.
-- The bounded result queue requires an active consumer during processing and
-  graceful shutdown.
-- Throughput depends on model, image dimensions, storage, compiler, and CPU.
-- There is no accuracy/top-k evaluation in the representative smoke path.
+当前测试覆盖以下方面：
 
-## License
+- queue semantics；
+- concurrent submit/stop；
+- graceful shutdown；
+- fault propagation；
+- multi-instance；
+- representative inference；
+- metrics；
+- lifecycle；
+- soak。
 
-Project source code is licensed under the MIT License. See [LICENSE](LICENSE).
+这些测试提供了工程验证证据，但不宣称对所有环境和所有并发交错进行形式化证明。
 
-Third-party dependencies, models, and representative assets remain subject to
-their respective licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+## 已知限制
 
-## Release context
+- 已验证的集成路径为 Windows/MSVC + ONNX Runtime CPU EP。
+- Linux 和其他 compiler/toolchain 组合尚未在本项目中验证。
+- 不包含 GPU、CUDA、DirectML 或其他 execution provider。
+- 有界 result queue 要求处理期间和优雅关闭期间存在活跃 consumer。
+- 吞吐量取决于模型、图像尺寸、存储、compiler 和 CPU。
+- 代表性 smoke 路径不包含 accuracy/top-k evaluation。
 
-Suggested GitHub description:
+## 许可证
 
-> C++17 / ONNX Runtime image inference pipeline with bounded backpressure, parallel preprocessing, configurable workers, graceful shutdown, and reproducible performance profiling.
+项目源代码使用 MIT License，详见 [LICENSE](LICENSE)。
 
-Suggested topics: `cpp`, `cpp17`, `onnx-runtime`, `opencv`,
-`computer-vision`, `inference`, `multithreading`, `concurrency`, `cmake`,
-`performance`.
+第三方依赖、模型和代表性资源分别遵循其自身许可证，详见
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-The public API and core pipeline are frozen at the Stage 8 boundary. The
-recommended portfolio release line is `v0.1.0`: the API is coherent and
-validated, while the documented platform limitations remain explicit.
+## Release 信息
+
+推荐的 GitHub 仓库描述：
+
+> 基于 C++17 / ONNX Runtime 的图像推理流水线，包含有界背压、并行预处理、可配置 worker、优雅关闭和可复现的性能分析。
+
+推荐 topics：`cpp`、`cpp17`、`onnx-runtime`、`opencv`、`computer-vision`、
+`inference`、`multithreading`、`concurrency`、`cmake`、`performance`。
+
+Public API 和核心 pipeline 在 Stage 8 边界冻结。推荐的 portfolio release line
+为 `v0.1.0`：API 已形成并完成验证，同时明确保留平台限制。
