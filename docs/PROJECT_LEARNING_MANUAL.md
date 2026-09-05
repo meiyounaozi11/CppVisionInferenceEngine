@@ -312,3 +312,47 @@ throughput stops scaling and latency rises; it is not proven by this fixture.
    inference time, and result wait, then define its timestamp boundaries.
 3. Interpret a result where throughput is flat, p99 rises, and CPU usage is
    unavailable; list evidence you would collect before optimizing.
+
+## 21. Representative Workload Profiling (Stage 5)
+
+The identity model is a useful plumbing fixture, but its ~0.0035 ms ORT work
+mostly measures queue and scheduling overhead. Stage 5 adds an external
+MobileNetV2 model with a 224×224 image so the same pipeline can be profiled on
+a realistic CPU convolution workload. This is a systems workload, not an
+accuracy benchmark.
+
+Inference-only mode reuses an already prepared `ImageTensor`; end-to-end mode
+measures file decode and production preprocessing before submission. These
+paths answer different questions and must not share an unlabeled latency
+number. On the current machine, MobileNetV2 ORT work is about 16 ms at intra=1,
+while file decode is about 37 ms. Four application workers provide about 3.37×
+inference-only speedup, but end-to-end throughput remains decode-limited because
+the benchmark producer is serial.
+
+Timing boundaries distinguish accepted-to-consumed pipeline latency from total
+end-to-end time. Stages overlap across tasks, so per-task durations are not
+expected to sum to wall-clock throughput. Aggregated CSV rows preserve the
+configuration and repeated-run evidence without committing large traces.
+
+### Stage 5 Self-Test
+
+1. Why is an identity model insufficient for choosing production worker counts?
+2. What is the difference between inference-only and end-to-end benchmarking?
+3. Why must model preprocessing match the model's input contract?
+4. What does a large input queue wait mean when ORT service time is stable?
+5. Why can serial image decode hide pipeline worker scaling?
+6. How can ORT intra-op threading change the interpretation of worker scaling?
+7. Why should per-task stage durations not be added as a wall-clock breakdown?
+8. When is an external model artifact preferable to committing a binary?
+9. What evidence would support calling a path preprocessing-bound?
+10. Why is a result-copy optimization unjustified when output materialization is
+    less than 0.1% of service time?
+
+### Three practice exercises
+
+1. From three MobileNetV2 throughput rows, calculate median speedup and
+   efficiency for two and four workers.
+2. Draw T0–T10 boundaries for decode, preprocessing, queue acceptance, ORT
+   execution, result publication, and consumer retrieval.
+3. Design a CSV schema that preserves model, mode, worker, queue, ORT settings,
+   throughput, percentiles, and failure accounting without per-task traces.

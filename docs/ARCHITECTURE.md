@@ -1,6 +1,6 @@
 # CppVisionInferenceEngine Architecture
 
-## Current Boundary (Stage 4)
+## Current Boundary (Stage 5)
 
 `CppVisionCore` contains status/error handling, task metadata, a monotonic
 stopwatch, console logging, an OpenCV-backed image preprocessing module, a
@@ -48,6 +48,9 @@ Result
 - `VisionPipelineBenchmark`: measurement executable intended for Release
   observations of warm-up, worker scaling, queue capacities, and ORT
   intra/inter-op comparisons.
+- `RepresentativeVisionBenchmark`: MobileNetV2 inference-only and end-to-end
+  profiling with aggregated CSV output; it reuses the production preprocessing
+  and pipeline targets.
 - `CppVisionInferenceEngine`: console application that validates foundation
   metadata, or preprocesses an image path supplied on the command line.
 - `VisionCoreTests` and `ImagePreprocessorTests`: deterministic CTest targets
@@ -56,6 +59,8 @@ Result
   same production core target.
 - `ConcurrencyPipelineTests` and `PerformanceMetricsTests`: lifecycle/stress
   coverage and metrics aggregation checks sharing the same production core.
+- `RepresentativeModelInferenceTest`: optional external-artifact correctness
+  coverage, enabled when `VISION_STAGE5_MODEL_PATH` points to a verified model.
 
 ## Future Boundaries
 

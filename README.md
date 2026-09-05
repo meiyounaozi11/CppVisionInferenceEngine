@@ -4,7 +4,7 @@
 重点展示 Modern C++、STL、RAII、smart pointer、move semantics、concurrency、
 CMake、OpenCV、ONNX Runtime、testing 和 Windows/Linux 工程能力。
 
-## Stage 4 Status
+## Stage 5 Status
 
 当前已完成 Project Foundation、OpenCV preprocessing pipeline 和单线程 CPU
 ONNX Runtime inference plumbing and bounded asynchronous inference pipeline：
@@ -27,8 +27,11 @@ ONNX Runtime inference plumbing and bounded asynchronous inference pipeline：
 - `PerformanceMetrics`：steady-clock duration samples 与 mean/min/max/p50/p90/p95/p99。
 - `VisionPipelineBenchmark`：warm-up、worker/queue/ORT threading 参数、吞吐和
   分阶段 latency observation。
+- `RepresentativeVisionBenchmark`：MobileNetV2 inference-only 与 end-to-end
+  profiling，输出可追踪的 CSV aggregate rows。
 
-正式视觉模型、YOLO、GPU、GUI 和视频输入仍为后续 planned work。Stage 3
+Stage 5 使用外部获取并校验的 MobileNetV2 artifact；模型不提交到 Git。
+YOLO、GPU、GUI 和视频输入仍为后续 planned work。Stage 3
 使用 `std::thread`、`mutex` 与 `condition_variable` 实现应用层任务并发，
 不是对 ONNX Runtime 内部线程池的重复实现。Stage 4 的正式性能观测只使用
 MSVC Release；Debug 仅用于正确性验证。
@@ -109,6 +112,17 @@ VisionPipelineBenchmark.exe --model tests/models/identity_nchw.onnx \
 
 方法与实际观测记录见 [docs/PERFORMANCE_BASELINE.md](docs/PERFORMANCE_BASELINE.md)。
 
+Representative workload profiling requires the verified external MobileNetV2
+artifact and image:
+
+```powershell
+powershell -File scripts/fetch_stage5_assets.ps1
+powershell -File scripts/run_stage5_benchmarks.ps1 `
+  -BenchmarkExe out/build/msvc-release/Release/RepresentativeVisionBenchmark.exe `
+  -Model models/representative/mobilenetv2-7.onnx `
+  -Image assets/representative/cat_image.jpg
+```
+
 ## Dependencies
 
 Stage 2 使用 manifest 固定 vcpkg baseline，并通过 `x64-windows` 安装
@@ -128,5 +142,8 @@ OpenCV 4.12.0 的 core/imgproc/imgcodecs 与 JPEG/PNG codec；ONNX Runtime
 - [Stage 3 Plan](docs/STAGE_3_PLAN.md)
 - [Stage 4 Plan](docs/STAGE_4_PLAN.md)
 - [Performance Baseline](docs/PERFORMANCE_BASELINE.md)
+- [Representative Workload](docs/REPRESENTATIVE_WORKLOAD.md)
+- [Stage 5 Plan](docs/STAGE_5_PLAN.md)
+- [Stage 5 Performance](docs/STAGE_5_PERFORMANCE.md)
 - [Project Learning Manual](docs/PROJECT_LEARNING_MANUAL.md)
 - [Models Policy](models/README.md)

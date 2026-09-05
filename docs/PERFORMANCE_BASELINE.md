@@ -139,3 +139,6 @@ Debug and Release CTest suites both passed all five tests after instrumentation.
 
 No queue rewrite, lock-free structure, GPU provider, or thread-affinity tuning
 is justified by this data.
+
+Stage 5 replaces this fixture-only conclusion with a representative MobileNetV2
+profile; see [STAGE_5_PERFORMANCE.md](STAGE_5_PERFORMANCE.md).
