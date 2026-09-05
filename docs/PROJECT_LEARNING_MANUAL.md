@@ -256,3 +256,59 @@ draining it during processing and before graceful shutdown. If nobody drains a
 full result queue, a worker may block publishing an accepted result and a
 joining stop cannot complete; this is a documented constraint, not hidden
 best-effort cancellation.
+
+## 19. Performance Baseline (Stage 4)
+
+Throughput is completed tasks divided by one wall-clock interval; latency is a
+per-task duration. Mean alone hides tails, so the benchmark reports p50, p90,
+p95, and p99. Warm-up runs remove first-run session/allocator effects from the
+steady-state sample. Debug builds are useful for correctness only; Release is
+the performance observation mode.
+
+The Stage 4 identity fixture measured roughly 116k tasks/s with one worker and
+roughly 359k tasks/s with four workers in repeated Release runs on a 16-logical-
+CPU Windows machine. That scaling is a fixture observation: the model's ORT
+work is only a few microseconds, so scheduling and result handling dominate.
+It must not be generalized to a production vision model.
+
+Speedup is `throughput(N) / throughput(1)` and parallel efficiency is speedup
+divided by `N` (about 3.1x and 77% at four workers in the measured scaling
+group). Amdahl's Law explains why a serial producer/consumer or copy portion
+limits the curve even when workers increase.
+
+Queue capacity changes buffering and backpressure as well as throughput. The
+capacity sweep found 4 a reasonable light-fixture compromise; larger queues
+showed higher latency without a stable throughput win. Input queue wait is
+stamped after successful acceptance, while result queue wait ends when the
+consumer pops the result. Metrics are aggregated after pop to avoid a global
+hot-path metrics lock; this still adds consumer-side observation overhead.
+
+Worker-level parallelism is distinct from ORT operator-level intra/inter-op
+threads. With the identity fixture, intra=2 or 4 did not produce a stable gain,
+so the production default remains ORT 1/1. More realistic models are required
+before changing that default. Oversubscription should be suspected only when
+throughput stops scaling and latency rises; it is not proven by this fixture.
+
+## 20. Stage 4 Self-Test
+
+1. What is the difference between throughput and end-to-end latency?
+2. Why are p95 and p99 useful in addition to mean?
+3. Why should warm-up runs be excluded from steady-state results?
+4. How are speedup and parallel efficiency calculated?
+5. Why is Release the formal performance mode here?
+
+6. How does queue capacity trade buffering latency against producer backpressure?
+7. Why can a tiny identity model make scheduler overhead look like inference
+   cost?
+8. What does Amdahl's Law predict when worker count increases?
+9. How do application workers differ from ORT intra/inter-op threads?
+10. Why must benchmark consumers drain a bounded result queue continuously?
+
+### Three practice exercises
+
+1. Given three throughput runs per worker count, calculate the median speedup
+   and parallel efficiency without choosing the fastest run.
+2. Design a value-type metrics sample containing queue wait, service time,
+   inference time, and result wait, then define its timestamp boundaries.
+3. Interpret a result where throughput is flat, p99 rises, and CPU usage is
+   unavailable; list evidence you would collect before optimizing.

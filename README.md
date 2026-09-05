@@ -4,7 +4,7 @@
 重点展示 Modern C++、STL、RAII、smart pointer、move semantics、concurrency、
 CMake、OpenCV、ONNX Runtime、testing 和 Windows/Linux 工程能力。
 
-## Stage 3 Status
+## Stage 4 Status
 
 当前已完成 Project Foundation、OpenCV preprocessing pipeline 和单线程 CPU
 ONNX Runtime inference plumbing and bounded asynchronous inference pipeline：
@@ -24,10 +24,14 @@ ONNX Runtime inference plumbing and bounded asynchronous inference pipeline：
 - `InferencePipeline`：可配置 worker 数量、任务/结果队列、异常转结果、
   原子统计和可重复的 graceful shutdown。结果队列有界，调用方需在运行
   和关闭期间持续消费结果。
+- `PerformanceMetrics`：steady-clock duration samples 与 mean/min/max/p50/p90/p95/p99。
+- `VisionPipelineBenchmark`：warm-up、worker/queue/ORT threading 参数、吞吐和
+  分阶段 latency observation。
 
 正式视觉模型、YOLO、GPU、GUI 和视频输入仍为后续 planned work。Stage 3
 使用 `std::thread`、`mutex` 与 `condition_variable` 实现应用层任务并发，
-不是对 ONNX Runtime 内部线程池的重复实现。
+不是对 ONNX Runtime 内部线程池的重复实现。Stage 4 的正式性能观测只使用
+MSVC Release；Debug 仅用于正确性验证。
 
 ## Implemented Pipeline
 
@@ -95,6 +99,16 @@ CLI inference smoke（使用仓库内 identity fixture）：
 CppVisionInferenceEngine.exe --model tests/models/identity_nchw.onnx --image tests/data/tiny.ppm
 ```
 
+Release performance observation（不是正式 benchmark）：
+
+```bash
+VisionPipelineBenchmark.exe --model tests/models/identity_nchw.onnx \
+  --image tests/data/tiny.ppm --workers 4 --input-capacity 4 \
+  --result-capacity 4 --warmup 50 --repeat 20000 --intra 1 --inter 1
+```
+
+方法与实际观测记录见 [docs/PERFORMANCE_BASELINE.md](docs/PERFORMANCE_BASELINE.md)。
+
 ## Dependencies
 
 Stage 2 使用 manifest 固定 vcpkg baseline，并通过 `x64-windows` 安装
@@ -112,5 +126,7 @@ OpenCV 4.12.0 的 core/imgproc/imgcodecs 与 JPEG/PNG codec；ONNX Runtime
 - [ONNX Runtime](docs/ONNX_RUNTIME.md)
 - [Concurrency Pipeline](docs/CONCURRENCY_PIPELINE.md)
 - [Stage 3 Plan](docs/STAGE_3_PLAN.md)
+- [Stage 4 Plan](docs/STAGE_4_PLAN.md)
+- [Performance Baseline](docs/PERFORMANCE_BASELINE.md)
 - [Project Learning Manual](docs/PROJECT_LEARNING_MANUAL.md)
 - [Models Policy](models/README.md)

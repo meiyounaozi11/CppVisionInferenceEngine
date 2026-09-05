@@ -1,13 +1,14 @@
 # CppVisionInferenceEngine Architecture
 
-## Current Boundary (Stage 3)
+## Current Boundary (Stage 4)
 
 `CppVisionCore` contains status/error handling, task metadata, a monotonic
-stopwatch, console logging, an OpenCV-backed image preprocessing module, and a
-  single-thread CPU ONNX Runtime inference module plus a standard C++17 bounded
-  producer/consumer pipeline. The MSVC presets enable both external
-  dependencies and return a pure STL `ImageTensor`/`InferenceResult` boundary;
-  the inference header has no OpenCV dependency.
+stopwatch, console logging, an OpenCV-backed image preprocessing module, a
+single-thread CPU ONNX Runtime inference module, a standard C++17 bounded
+producer/consumer pipeline, and offline performance metrics aggregation. The
+MSVC presets enable both external dependencies and return a pure STL
+`ImageTensor`/`InferenceResult` boundary; the inference header has no OpenCV
+dependency.
 
 ## Target Pipeline (Planned)
 
@@ -42,12 +43,19 @@ Result
 - `InferencePipeline`: application-level worker threads, task/result ownership,
   exception-to-result conversion, atomic statistics, graceful join, and an
   explicit result-consumption contract for the bounded output queue.
+- `PerformanceMetrics`: post-consumer aggregation of steady-clock samples and
+  percentile summaries; it does not synchronize workers or log in the hot path.
+- `VisionPipelineBenchmark`: measurement executable intended for Release
+  observations of warm-up, worker scaling, queue capacities, and ORT
+  intra/inter-op comparisons.
 - `CppVisionInferenceEngine`: console application that validates foundation
   metadata, or preprocesses an image path supplied on the command line.
 - `VisionCoreTests` and `ImagePreprocessorTests`: deterministic CTest targets
   sharing `CppVisionCore`.
 - `InferenceEngineTests`: deterministic ONNX Runtime fixture tests sharing the
   same production core target.
+- `ConcurrencyPipelineTests` and `PerformanceMetricsTests`: lifecycle/stress
+  coverage and metrics aggregation checks sharing the same production core.
 
 ## Future Boundaries
 

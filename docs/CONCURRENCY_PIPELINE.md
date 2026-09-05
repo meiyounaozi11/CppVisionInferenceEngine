@@ -67,9 +67,11 @@ Without a consumer, a worker can legitimately block on a full result queue and
 `stop()` cannot join it; callers must not use that unsupported shutdown path.
 
 The submit linearization point is the successful insertion into the input
-queue. If `submit()` returns `true`, the task was accepted before any racing
-input-queue close and will be drained. If it returns `false`, the task was not
-accepted and is not counted.
+queue. A queue callback stamps that accepted item immediately before it becomes
+visible to consumers. If `submit()` returns `true`, the task was accepted
+before any racing input-queue close and will be drained. If it returns
+`false`, the task was not accepted and is not counted. Input queue wait is
+measured from this acceptance stamp to worker service start.
 
 Worker exceptions are caught at the thread boundary and converted into failed
 results carrying the original task id. No exception escapes a thread function.
