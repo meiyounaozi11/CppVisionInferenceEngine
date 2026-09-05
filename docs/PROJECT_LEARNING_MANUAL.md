@@ -211,6 +211,11 @@ result queue. This is graceful drain, not immediate cancellation.
 The pipeline's workers are application-level concurrency. ONNX Runtime also
 has internal intra/inter-op scheduling; this project keeps those settings at
 one thread so the two layers remain distinguishable and deterministic.
+`InferenceEngine::run()` was audited for mutable members and uses only local
+per-call buffers, so the shared CPU session is intentionally callable from
+multiple workers. This is a code-and-runtime contract, not the shortcut
+"const therefore thread-safe"; provider-specific restrictions must still be
+checked before changing execution providers.
 
 ## 17. Stage 3 Self-Test
 
@@ -237,3 +242,17 @@ one thread so the two layers remain distinguishable and deterministic.
    close, and thread joins.
 3. Write a processor fixture that turns one task into a failed result without
    throwing past the worker thread boundary.
+
+## 18. Stage 3 Correctness Audit Notes
+
+The input queue insertion is the submit linearization point. A racing
+`stop()` either closes the queue first (submit returns false) or after
+insertion (the accepted task is drained). Concurrent `stop()` calls are
+serialized by a dedicated mutex, and only the worker whose decrement observes
+the previous count as one closes the result queue.
+
+The bounded result queue has an explicit consumer contract: callers must keep
+draining it during processing and before graceful shutdown. If nobody drains a
+full result queue, a worker may block publishing an accepted result and a
+joining stop cannot complete; this is a documented constraint, not hidden
+best-effort cancellation.

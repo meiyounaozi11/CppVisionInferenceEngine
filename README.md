@@ -22,7 +22,8 @@ ONNX Runtime inference plumbing and bounded asynchronous inference pipeline：
 - `InferenceResult`：复制后的输出 tensor、shape 与单次 elapsed time。
 - `BoundedBlockingQueue<T>`：有界阻塞 FIFO、close/drain、move-only 支持。
 - `InferencePipeline`：可配置 worker 数量、任务/结果队列、异常转结果、
-  原子统计和可重复的 graceful shutdown。
+  原子统计和可重复的 graceful shutdown。结果队列有界，调用方需在运行
+  和关闭期间持续消费结果。
 
 正式视觉模型、YOLO、GPU、GUI 和视频输入仍为后续 planned work。Stage 3
 使用 `std::thread`、`mutex` 与 `condition_variable` 实现应用层任务并发，

@@ -28,6 +28,9 @@ Consumer
 - `PipelineResult` owns copied inference output/value data and is moved to the result queue.
 - The input queue has a configurable bounded capacity (default 8). It is the backpressure boundary.
 - The result queue is also bounded (default capacity 8); normal consumers must drain it while the pipeline runs.
+- Result consumption is part of the shutdown contract. A caller that does not
+  drain a full result queue must not call the graceful-drain stop path, because
+  a worker is allowed to block publishing an accepted result.
 
 ## Worker and engine choice
 
@@ -54,3 +57,5 @@ Queue tests use futures/promises and bounded timeouts only for synchronization, 
 - Shared-session concurrent `Run` must remain read-only from application code.
 - A bounded result queue requires a consumer to drain results during a long workload; tests will exercise normal draining and idle shutdown explicitly.
 - Shutdown must leave no joinable thread and no uncaught worker exception.
+- Submit/stop races and concurrent stop calls must be covered by deterministic
+  tests; accepted task IDs must match delivered result IDs.

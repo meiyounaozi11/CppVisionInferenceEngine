@@ -40,7 +40,8 @@ Result
 - `BoundedBlockingQueue<T>`: predicate-based blocking FIFO with close/drain
   semantics and move-only support.
 - `InferencePipeline`: application-level worker threads, task/result ownership,
-  exception-to-result conversion, atomic statistics, and graceful join.
+  exception-to-result conversion, atomic statistics, graceful join, and an
+  explicit result-consumption contract for the bounded output queue.
 - `CppVisionInferenceEngine`: console application that validates foundation
   metadata, or preprocesses an image path supplied on the command line.
 - `VisionCoreTests` and `ImagePreprocessorTests`: deterministic CTest targets
