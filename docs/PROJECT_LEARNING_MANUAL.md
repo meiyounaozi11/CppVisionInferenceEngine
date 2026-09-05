@@ -188,3 +188,52 @@ quality.
    copied `InferenceResult` data.
 3. Given a model with one dynamic dimension, explain which dimensions can be
    accepted and which rank/data-size checks must still fail.
+
+## 16. C++ Producer-Consumer Pipeline (Stage 3)
+
+`std::thread` runs application workers; `join()` makes ownership and shutdown
+explicit, while `detach()` would make lifetime and error propagation harder to
+prove. `BoundedBlockingQueue<T>` protects a `std::deque<T>` with a mutex and
+uses `std::unique_lock` plus `std::condition_variable`. A wait must use a
+predicate (or an equivalent loop) because wakeups can be spurious and a
+notification can occur before a thread actually waits.
+
+The queue is bounded to create backpressure: a fast producer blocks instead of
+allocating unbounded pending tensors. `close()` sets a terminal state and calls
+`notify_all()` on both conditions so blocked producers and consumers re-check
+their predicates. Existing values remain drainable; new pushes fail.
+
+`InferenceTask` and `PipelineResult` are value owners. Moving a task transfers
+its potentially large tensor vector without a deep copy. The pipeline catches
+worker exceptions and returns an error result, then the last worker closes the
+result queue. This is graceful drain, not immediate cancellation.
+
+The pipeline's workers are application-level concurrency. ONNX Runtime also
+has internal intra/inter-op scheduling; this project keeps those settings at
+one thread so the two layers remain distinguishable and deterministic.
+
+## 17. Stage 3 Self-Test
+
+1. Why is `wait(lock)` without a predicate insufficient?
+2. Why does a bounded queue provide backpressure?
+3. Why must `close()` call `notify_all()` for both conditions?
+4. Why must inference never run while holding the queue mutex?
+5. What happens if a destructor encounters a joinable `std::thread`?
+
+6. Compare graceful drain with immediate cancel for accepted tasks.
+7. How can a bounded result queue affect shutdown if the consumer never drains
+   it?
+8. Why are move-only task values useful for image tensors?
+9. Which state is protected by atomics, and which state is protected by the
+   queue mutex?
+10. Why is an application worker count not the same thing as ORT's operator
+    thread pool?
+
+### Three practice exercises
+
+1. Implement a small `BoundedBlockingQueue<MoveOnly>` with predicate waits and
+   close/drain behavior.
+2. Draw the sequence from `stop()` through queue close, worker exit, result
+   close, and thread joins.
+3. Write a processor fixture that turns one task into a failed result without
+   throwing past the worker thread boundary.

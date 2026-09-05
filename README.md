@@ -4,10 +4,10 @@
 重点展示 Modern C++、STL、RAII、smart pointer、move semantics、concurrency、
 CMake、OpenCV、ONNX Runtime、testing 和 Windows/Linux 工程能力。
 
-## Stage 2 Status
+## Stage 3 Status
 
 当前已完成 Project Foundation、OpenCV preprocessing pipeline 和单线程 CPU
-ONNX Runtime inference plumbing：
+ONNX Runtime inference plumbing and bounded asynchronous inference pipeline：
 
 - C++17 target-based CMake 工程。
 - `CppVisionCore` 静态库。
@@ -20,18 +20,23 @@ ONNX Runtime inference plumbing：
 - `InferenceEngine`：`Ort::Env`/`Ort::Session`、metadata、shape validation 和
   CPU `Session::Run`。
 - `InferenceResult`：复制后的输出 tensor、shape 与单次 elapsed time。
+- `BoundedBlockingQueue<T>`：有界阻塞 FIFO、close/drain、move-only 支持。
+- `InferencePipeline`：可配置 worker 数量、任务/结果队列、异常转结果、
+  原子统计和可重复的 graceful shutdown。
 
-正式视觉模型、YOLO、ThreadPool、队列、mutex、GPU 和 GUI 均为后续 planned
-work，当前没有声称已经实现。
+正式视觉模型、YOLO、GPU、GUI 和视频输入仍为后续 planned work。Stage 3
+使用 `std::thread`、`mutex` 与 `condition_variable` 实现应用层任务并发，
+不是对 ONNX Runtime 内部线程池的重复实现。
 
-## Planned Pipeline
+## Implemented Pipeline
 
 ```text
-Input → Preprocess → Task Queue → Inference Worker → Postprocess → Result
+Input → Preprocess → Bounded Task Queue → Inference Workers → InferenceEngine →
+Bounded Result Queue → Consumer
 ```
 
-详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，其中明确区分
-Implemented 与 Planned。
+详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 和
+[docs/CONCURRENCY_PIPELINE.md](docs/CONCURRENCY_PIPELINE.md)。
 
 ## Technology Direction
 
@@ -104,5 +109,7 @@ OpenCV 4.12.0 的 core/imgproc/imgcodecs 与 JPEG/PNG codec；ONNX Runtime
 - [Stage 0 Environment](docs/STAGE_0_ENVIRONMENT.md)
 - [Preprocessing](docs/PREPROCESSING.md)
 - [ONNX Runtime](docs/ONNX_RUNTIME.md)
+- [Concurrency Pipeline](docs/CONCURRENCY_PIPELINE.md)
+- [Stage 3 Plan](docs/STAGE_3_PLAN.md)
 - [Project Learning Manual](docs/PROJECT_LEARNING_MANUAL.md)
 - [Models Policy](models/README.md)
