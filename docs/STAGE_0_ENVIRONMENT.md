@@ -1,15 +1,19 @@
-# Stage 0 Environment Audit
+# Stage 0 Environment Audit (Historical)
 
 Date: 2026-09-05  
 Platform: Windows x64
+
+This document records the original toolchain audit. It is retained as a
+historical engineering record; current setup instructions are in the root
+README and the vcpkg manifest. Machine-specific installation paths are
+intentionally omitted.
 
 ## Recommended Windows Toolchain
 
 The primary Windows path is Visual Studio Community 2026 with the currently
 installed MSVC v145 toolset, x64 architecture, Windows SDK, CMake, and Ninja.
-VS2026 was discovered through `vswhere` at:
-
-`C:\Program Files\Microsoft Visual Studio\18\Community`
+Visual Studio was discovered through `vswhere`; the installation path is
+machine-specific and is not required by the repository.
 
 CMake 4.3.3 supports the `Visual Studio 18 2026` generator. The MSVC presets
 request `toolset: v145` and `architecture: x64`; CMake selected:
@@ -46,9 +50,9 @@ This project deliberately does not install OpenCV or ONNX Runtime in Stage
 
 ## vcpkg
 
-The official Microsoft vcpkg repository was bootstrapped locally at:
-
-`C:\Users\11767\Desktop\vcpkg`
+The official Microsoft vcpkg repository was bootstrapped locally. Its checkout
+location is supplied through the repository-independent `VCPKG_ROOT`
+environment variable.
 
 Verified:
 
@@ -60,18 +64,16 @@ selection should use a manifest and explicitly match the MSVC x64 ABI.
 
 ## Legacy Compiler
 
-MinGW-w64 GCC 8.1.0 remains at:
-
-`C:\mingw64\bin\g++.exe`
-
-It remains usable for the original Ninja presets and historical comparison, but
-is no longer the primary Windows development environment.
+MinGW-w64 GCC 8.1.0 remains usable when it is available through the host PATH
+or an explicitly configured toolchain. It is retained for the original Ninja
+presets and historical comparison, but is no longer the primary Windows
+development environment.
 
 ## OpenCV and ONNX Runtime
 
-Neither dependency is installed or integrated. This is intentional for Stage
-0.5; installation is deferred until the project has a real preprocessing or
-inference implementation that can be tested.
+Neither dependency was installed or integrated at the Stage 0.5 checkpoint.
+Later stages added the OpenCV and ONNX Runtime paths documented by the current
+README and architecture documentation.
 
 ## Verification Boundary
 

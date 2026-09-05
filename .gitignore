@@ -16,6 +16,8 @@ CMakeUserPresets.json
 .idea/
 .vscode/
 *.user
+*.suo
+*.vcxproj.user
 
 # Models and generated media
 models/*.onnx
@@ -35,3 +37,5 @@ benchmark-output/
 *.o
 *.pdb
 *.log
+*.tmp
+*.dmp
