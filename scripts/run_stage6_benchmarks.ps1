@@ -1,12 +1,25 @@
 param(
-    [string]$Model = "$PSScriptRoot\..\models\representative\mobilenetv2-7.onnx",
-    [string]$Image = "$PSScriptRoot\..\assets\representative\cat_image.jpg",
-    [string]$BuildDir = "$PSScriptRoot\..\out\build\msvc-release\Release",
+    [string]$Model = '',
+    [string]$Image = '',
+    [string]$BuildDir = '',
     [int]$Repeat = 100,
     [int]$Warmup = 10,
-    [string]$Output = "$PSScriptRoot\..\benchmark_results\stage6_optimization.csv"
+    [string]$Output = ''
 )
 $ErrorActionPreference = 'Stop'
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($Model)) {
+    $Model = Join-Path $scriptRoot '..\models\representative\mobilenetv2-7.onnx'
+}
+if ([string]::IsNullOrWhiteSpace($Image)) {
+    $Image = Join-Path $scriptRoot '..\assets\representative\cat_image.jpg'
+}
+if ([string]::IsNullOrWhiteSpace($BuildDir)) {
+    $BuildDir = Join-Path $scriptRoot '..\out\build\msvc-release\Release'
+}
+if ([string]::IsNullOrWhiteSpace($Output)) {
+    $Output = Join-Path $scriptRoot '..\benchmark_results\stage6_optimization.csv'
+}
 $exe = Join-Path $BuildDir 'Stage6OptimizationBenchmark.exe'
 if (-not (Test-Path $exe)) { throw "Release benchmark executable not found: $exe" }
 if (-not (Test-Path $Model)) { throw "Model not found: $Model" }

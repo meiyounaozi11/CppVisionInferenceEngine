@@ -1,10 +1,17 @@
 [CmdletBinding()]
 param(
-    [string]$ModelPath = (Join-Path $PSScriptRoot '..\models\representative\mobilenetv2-7.onnx'),
-    [string]$ImagePath = (Join-Path $PSScriptRoot '..\assets\representative\cat_image.jpg')
+    [string]$ModelPath = '',
+    [string]$ImagePath = ''
 )
 
 $ErrorActionPreference = 'Stop'
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($ModelPath)) {
+    $ModelPath = Join-Path $scriptRoot '..\models\representative\mobilenetv2-7.onnx'
+}
+if ([string]::IsNullOrWhiteSpace($ImagePath)) {
+    $ImagePath = Join-Path $scriptRoot '..\assets\representative\cat_image.jpg'
+}
 $modelUrl = 'https://github.com/onnx/models/raw/refs/heads/main/validated/vision/classification/mobilenet/model/mobilenetv2-7.onnx'
 $imageUrl = 'https://commons.wikimedia.org/wiki/Special:FilePath/Cat_image.jpg'
 $expectedModelSha256 = 'C1C513582D56AFCEFF8516C73804E484C81C6A830712AB6D682253F4A3CD042F'
