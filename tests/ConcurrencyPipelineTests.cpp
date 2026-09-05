@@ -1,4 +1,4 @@
-#include "vision/BoundedBlockingQueue.h"
+#include "vision/detail/BoundedBlockingQueue.h"
 #include "vision/InferencePipeline.h"
 
 #include <atomic>
@@ -41,14 +41,14 @@ bool queueTests()
 {
     bool passed = true;
 
-    vision::BoundedBlockingQueue<int> queue(2);
+    vision::detail::BoundedBlockingQueue<int> queue(2);
     passed &= expect(queue.push(1), "first push should succeed");
     passed &= expect(queue.push(2), "second push should succeed");
     passed &= expect(queue.size() == 2U, "queue should report bounded size");
     passed &= expect(queue.pop().value() == 1, "queue should be FIFO");
     passed &= expect(queue.pop().value() == 2, "queue should preserve FIFO order");
 
-    vision::BoundedBlockingQueue<int> producerQueue(1);
+    vision::detail::BoundedBlockingQueue<int> producerQueue(1);
     passed &= expect(producerQueue.push(7), "fill push should succeed");
     std::promise<void> producerStarted;
     std::future<void> producerStartedFuture = producerStarted.get_future();
@@ -66,7 +66,7 @@ bool queueTests()
     passed &= expect(producerResultFuture.get(), "blocked producer should resume");
     producer.join();
 
-    vision::BoundedBlockingQueue<int> consumerQueue(1);
+    vision::detail::BoundedBlockingQueue<int> consumerQueue(1);
     std::promise<void> consumerStarted;
     std::future<void> consumerStartedFuture = consumerStarted.get_future();
     std::promise<std::optional<int>> consumerResult;
@@ -83,7 +83,7 @@ bool queueTests()
     passed &= expect(consumerResultFuture.get().value() == 9, "consumer should receive value");
     consumer.join();
 
-    vision::BoundedBlockingQueue<int> closeProducerQueue(1);
+    vision::detail::BoundedBlockingQueue<int> closeProducerQueue(1);
     passed &= expect(closeProducerQueue.push(1), "close test fill should succeed");
     std::promise<bool> closePushResult;
     std::future<bool> closePushFuture = closePushResult.get_future();
@@ -97,7 +97,7 @@ bool queueTests()
     passed &= expect(closeProducerQueue.pop().value() == 1, "close should drain existing item");
     passed &= expect(!closeProducerQueue.pop().has_value(), "drained closed queue should return empty");
 
-    vision::BoundedBlockingQueue<int> closeConsumerQueue(1);
+    vision::detail::BoundedBlockingQueue<int> closeConsumerQueue(1);
     std::promise<std::optional<int>> closePopResult;
     std::future<std::optional<int>> closePopFuture = closePopResult.get_future();
     std::thread blockedConsumer([&] { closePopResult.set_value(closeConsumerQueue.pop()); });
@@ -116,11 +116,11 @@ bool queueTests()
         MoveOnly &operator=(MoveOnly &&) noexcept = default;
         int value;
     };
-    vision::BoundedBlockingQueue<MoveOnly> moveQueue(1);
+    vision::detail::BoundedBlockingQueue<MoveOnly> moveQueue(1);
     passed &= expect(moveQueue.push(MoveOnly(42)), "move-only value should be accepted");
     passed &= expect(moveQueue.pop()->value == 42, "move-only value should round-trip");
 
-    vision::BoundedBlockingQueue<int> multiQueue(32);
+    vision::detail::BoundedBlockingQueue<int> multiQueue(32);
     constexpr int producerCount = 3;
     constexpr int valuesPerProducer = 20;
     std::vector<std::thread> producers;

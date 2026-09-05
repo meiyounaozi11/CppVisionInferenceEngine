@@ -30,9 +30,9 @@ int main() {
     std::thread consumer([&] {
         while (auto result = pipeline.popResult()) { ++resultCount; resultIds.insert(result->taskId); }
     });
-    std::mutex mutex; std::set<std::string> failures;
+    std::mutex mutex; std::set<std::string> failures; vision::PreparationFailure lastFailure;
     vision::ImagePreparationPipeline prep(pipeline, preprocessor, 2, 2,
-        [&](const std::string &id, const std::string &) { std::lock_guard<std::mutex> lock(mutex); failures.insert(id); });
+        [&](const vision::PreparationFailure &failure) { std::lock_guard<std::mutex> lock(mutex); failures.insert(failure.taskId); lastFailure = failure; });
     passed &= expect(prep.start(), "preparation starts");
     for (int i=0;i<20;++i) passed &= expect(prep.submit(vision::PreparationTask("id-"+std::to_string(i), bytes)), "task accepted");
     prep.stop(); pipeline.stop(); consumer.join();
@@ -43,12 +43,15 @@ int main() {
     vision::InferencePipeline failedPipeline([](vision::InferenceTask &&task) { vision::PipelineResult r; r.taskId=task.taskId; r.status=vision::PipelineResultStatus::Success; return r; }, 1, 1, 1);
     passed &= expect(failedPipeline.start(), "failed pipeline starts");
     vision::ImagePreparationPipeline failedPrep(failedPipeline, preprocessor, 1, 1,
-        [&](const std::string &id, const std::string &) { std::lock_guard<std::mutex> lock(mutex); failures.insert(id); });
+        [&](const vision::PreparationFailure &failure) { std::lock_guard<std::mutex> lock(mutex); failures.insert(failure.taskId); lastFailure = failure; });
     passed &= expect(failedPrep.start(), "failed preparation starts");
     auto bad = std::make_shared<const std::vector<unsigned char>>(std::vector<unsigned char>{1,2,3});
     passed &= expect(failedPrep.submit(vision::PreparationTask("bad", bad)), "bad task accepted for processing");
     failedPrep.stop(); failedPipeline.stop();
-    passed &= expect(failedPrep.stats().failed == 1 && failures.count("bad") == 1, "decode failure is reported");
+    passed &= expect(failedPrep.stats().failed == 1 && failures.count("bad") == 1
+                         && lastFailure.errorCode == vision::ErrorCode::DecodeFailed
+                         && lastFailure.failureStage == vision::FailureStage::Decode,
+                     "corrupted JPEG reports decode failure details");
 
     std::cout << (passed ? "ImagePreparationPipelineTests passed\n" : "ImagePreparationPipelineTests failed\n");
     return passed ? 0 : 1;

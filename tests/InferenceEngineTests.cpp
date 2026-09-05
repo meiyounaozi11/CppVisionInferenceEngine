@@ -34,7 +34,10 @@ int main()
         = std::filesystem::path(VISION_TEST_MODEL_DIR) / "identity_nchw.onnx";
 
     vision::InferenceEngine missing("missing-model.onnx");
-    passed &= expect(!missing.initialize().isOk(), "invalid model path should fail");
+    const vision::Status missingStatus = missing.initialize();
+    passed &= expect(!missingStatus.isOk() && missingStatus.code() == vision::ErrorCode::NotFound
+                         && missingStatus.stage() == vision::FailureStage::ModelInitialization,
+                     "invalid model path should fail with model details");
 
     vision::InferenceEngine engine(modelPath.string());
     passed &= expect(engine.initialize().isOk(), "fixture model should load");
@@ -45,12 +48,23 @@ int main()
     passed &= expect(engine.outputs().front().name == "output", "output name should be inspected");
     passed &= expect(engine.inputs().front().shape == std::vector<std::int64_t>{1, 3, 2, 2},
                      "input shape should be inspected");
+    passed &= expect(engine.inputs().front().elementType == ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
+                     "input element type should be inspected");
+
+    const vision::Status repeatedInitialize = engine.initialize();
+    passed &= expect(!repeatedInitialize.isOk()
+                         && repeatedInitialize.code() == vision::ErrorCode::InvalidLifecycle,
+                     "repeated engine initialization should be rejected");
 
     vision::ImageTensor wrongShape;
     wrongShape.shape = {1, 3, 1, 1};
     wrongShape.data = {1.0F, 2.0F, 3.0F};
     vision::InferenceResult result;
-    passed &= expect(!engine.run(wrongShape, result).isOk(), "wrong input shape should fail");
+    const vision::Status wrongShapeStatus = engine.run(wrongShape, result);
+    passed &= expect(!wrongShapeStatus.isOk()
+                         && wrongShapeStatus.code() == vision::ErrorCode::InvalidTensor
+                         && wrongShapeStatus.stage() == vision::FailureStage::TensorValidation,
+                     "wrong input shape should fail as tensor validation");
 
     cv::Mat image(2, 2, CV_8UC3);
     image.at<cv::Vec3b>(0, 0) = cv::Vec3b(1, 2, 3);
