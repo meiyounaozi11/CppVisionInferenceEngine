@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 - Portfolio release candidate
+## 0.1.0 - Portfolio release
 
 ### Added
 
@@ -35,6 +35,6 @@
 ### Known limitations
 
 - Integration evidence is Windows/MSVC and ONNX Runtime CPU EP specific.
-- The model is external and ignored by Git; the repository license still
-  requires an explicit owner decision.
+- The model is external and ignored by Git; platform and backend limitations
+  remain documented.
 - No GPU backend, Linux validation, or accuracy/top-k evaluation is included.

@@ -3,6 +3,12 @@
 This file records the external components and representative assets used by
 the project. It is not a replacement for the license text of any dependency.
 
+## Project source code
+
+The original source code in this repository is licensed under the MIT License;
+see the root `LICENSE` file. This project license does not relicense any
+third-party dependency, model, or representative asset listed below.
+
 ## OpenCV
 
 - Use: image decode, resize, color conversion, and preprocessing.

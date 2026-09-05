@@ -4,6 +4,9 @@ This document is a factual evidence sheet for portfolio, resume, and interview
 preparation. It is not a replacement for the implementation or detailed Stage
 records.
 
+Project status: `READY FOR PORTFOLIO`  
+Core engine status: `FROZEN`
+
 ## Project goal
 
 Build a reusable C++17 CPU image-inference pipeline that makes ownership,
@@ -17,6 +20,8 @@ explicit.
 - CMake, CTest, MSVC x64, and a vcpkg manifest.
 - OpenCV for image loading and preprocessing.
 - ONNX Runtime CPU execution provider for model inference.
+- Project source code is released under the MIT License; third-party terms are
+  listed in `THIRD_PARTY_NOTICES.md`.
 
 ## Architecture
 
@@ -104,5 +109,3 @@ the Stage 7 fixed regression observation remains 68.0658 images/s.
 - Linux and other execution providers are not validated.
 - No accuracy/top-k evaluation is included.
 - The result queue requires an active consumer during graceful drain.
-- The repository license decision remains an explicit release action; see
-  `docs/LICENSE_DECISION_REQUIRED.md`.

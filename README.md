@@ -5,6 +5,9 @@ and OpenCV, featuring bounded backpressure, parallel preprocessing,
 configurable workers, lifecycle-safe shutdown, and reproducible performance
 profiling.
 
+Status: `READY FOR PORTFOLIO`  
+Core engine: `FROZEN`
+
 ## Overview
 
 This project explores the engineering boundary between image preparation and
@@ -271,8 +274,13 @@ are not required reading for the quick-start path.
   graceful shutdown.
 - Throughput depends on model, image dimensions, storage, compiler, and CPU.
 - There is no accuracy/top-k evaluation in the representative smoke path.
-- The repository license decision is recorded in
-  `docs/LICENSE_DECISION_REQUIRED.md`; no license is silently implied.
+
+## License
+
+Project source code is licensed under the MIT License. See [LICENSE](LICENSE).
+
+Third-party dependencies, models, and representative assets remain subject to
+their respective licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Release context
 
@@ -286,5 +294,4 @@ Suggested topics: `cpp`, `cpp17`, `onnx-runtime`, `opencv`,
 
 The public API and core pipeline are frozen at the Stage 8 boundary. The
 recommended portfolio release line is `v0.1.0`: the API is coherent and
-validated, but the evidence remains Windows/CPU-specific and the repository
-license still needs an explicit owner decision.
+validated, while the documented platform limitations remain explicit.
