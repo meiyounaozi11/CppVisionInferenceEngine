@@ -5,7 +5,7 @@
 ```text
 Producer
   ↓ move InferenceTask
-BoundedBlockingQueue<InferenceTask>
+vision::detail::BoundedBlockingQueue<InferenceTask>
   ↓
 std::thread workers
   ↓ shared read-only InferenceEngine::run
@@ -29,7 +29,9 @@ are drained before `pop()` returns an empty optional.
 ## Worker and engine model
 
 `InferencePipeline` owns its `std::thread` objects and joins them during
-`stop()`/destruction. The initialized `InferenceEngine` is shared as a
+`stop()`/destruction. Its formal state is `Created → Running → Stopping →
+Stopped`; it is single-use, while independent new instances are supported. The
+initialized `InferenceEngine` is shared as a
 `std::shared_ptr<const InferenceEngine>`; workers only call its const `run()`
 operation and do not mutate engine state. The implementation audit found no
 mutable scratch buffers, caches, reusable tensors, or static per-run state:
@@ -38,9 +40,10 @@ per-call locals. ONNX Runtime documents that multiple threads may invoke
 `Run()` on the same session for the standard execution design ([Architecture
 overview](https://onnxruntime.ai/docs/reference/high-level-design.html)); this
 project uses its CPU provider, not a provider with a stricter single-thread
-restriction. The Stage 2 engine configures ONNX Runtime intra/inter-op pools to
-one thread, so these are application-level task workers rather than a
-duplicate operator thread pool.
+restriction. The portable configuration defaults ONNX Runtime intra/inter-op
+pools to one thread, so these are application-level task workers rather than a
+duplicate operator thread pool. Stage 6's four-worker profile is an explicit
+measured setting, not a universal default.
 
 Tests can inject a processor function. This keeps queue, backpressure, error,
 and lifecycle tests deterministic without sleeping or loading a model; the

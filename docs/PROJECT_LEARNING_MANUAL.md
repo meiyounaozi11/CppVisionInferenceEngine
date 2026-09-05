@@ -392,3 +392,68 @@ for correctness only.
    and preprocessing durations.
 3. Given baseline and optimized CSV rows, calculate speedup, p95 change, and
    approximate in-flight memory for a selected configuration.
+
+## Stage 7 — Production hardening
+
+Stage 7 changes the question from “does the pipeline scale?” to “can another
+program call it safely for a long time?” The public API names ownership and
+configuration, and the lifecycle is a single-use state machine:
+`Created → Running → Stopping → Stopped`. A new object may be constructed
+after a stop; the same object cannot be restarted.
+
+### RAII in concurrent systems
+
+`InferenceEngine` owns the ORT environment and session with `unique_ptr`.
+Pipelines own queues and `std::thread` objects, and their destructors call the
+same `noexcept stop()` cleanup path. RAII does not remove the need for a
+shutdown protocol: the consumer must drain the bounded result queue while
+workers finish, otherwise backpressure can correctly keep a worker blocked.
+
+### Public API contract and fault containment
+
+`PipelineConfig::validate()` rejects zero capacities/workers and invalid ORT
+thread counts before execution. Synchronous operations return `Status`, while
+asynchronous outcomes carry task ID, `ErrorCode`, `FailureStage`, and a human
+message. Decode, preprocess, tensor validation, ORT execution, queue closure,
+and unknown worker exceptions are therefore observable without parsing logs.
+Every thread entry has a final catch boundary; a library exception must not
+reach `std::terminate`.
+
+### Soak testing and memory high-water marks
+
+A soak test checks closure rather than just throughput:
+`accepted == completed + failed`, with no duplicate or missing IDs. Working set
+observations should record initial, warm, peak, and final values. A final value
+above the initial value is not automatically a leak: OpenCV, ORT, and the CRT
+allocator may cache arenas. The production risk is unbounded growth over a
+long workload, not failure to return every cached page immediately.
+
+### Bounded resource usage and logging
+
+Each queue has a configured capacity, but decoded `cv::Mat` values can be much
+larger than their compressed JPEGs. A useful upper-bound estimate includes
+compressed inputs, one decoded image per preparation worker, queued tensors,
+one tensor per inference worker, queued results, and small task metadata. Core
+code returns structured failure data; application and benchmark layers choose
+whether and where to log aggregate information.
+
+### API stability
+
+The queue template is under `vision/detail` and is not an application contract.
+Named `PipelineConfig` is the preferred constructor surface; old positional
+constructors remain deprecated for Stage 3–6 source compatibility. New code
+should use the named configuration and follow the documented preparation-first
+shutdown order.
+
+### Stage 7 self-test
+
+1. Why is a single-use pipeline different from a process that can create only
+   one pipeline?
+2. Why does a bounded result queue make consumer behavior part of the API?
+3. Why are `ErrorCode` and `FailureStage` more useful than a boolean alone?
+4. Why is allocator caching not sufficient evidence of a memory leak?
+5. Which objects own the ORT session, tensors, results, queues, and workers?
+6. Why should the measured four-worker profile not become the portable default?
+7. What equality must hold after a soak run, and what do duplicate/missing IDs
+   reveal?
+8. Why should the library core avoid per-task `std::cout` logging?

@@ -4,10 +4,11 @@
 重点展示 Modern C++、STL、RAII、smart pointer、move semantics、concurrency、
 CMake、OpenCV、ONNX Runtime、testing 和 Windows/Linux 工程能力。
 
-## Stage 5 Status
+## Stage 7 Status
 
-当前已完成 Project Foundation、OpenCV preprocessing pipeline 和单线程 CPU
-ONNX Runtime inference plumbing and bounded asynchronous inference pipeline：
+当前已完成 Project Foundation、OpenCV preprocessing pipeline、CPU
+ONNX Runtime inference、bounded preparation/inference pipeline，以及 Stage 7
+production hardening：
 
 - C++17 target-based CMake 工程。
 - `CppVisionCore` 静态库。
@@ -24,13 +25,19 @@ ONNX Runtime inference plumbing and bounded asynchronous inference pipeline：
 - `InferencePipeline`：可配置 worker 数量、任务/结果队列、异常转结果、
   原子统计和可重复的 graceful shutdown。结果队列有界，调用方需在运行
   和关闭期间持续消费结果。
+- `PipelineConfig`：统一的 portable default、Stage 6 measured profile 和独立
+  validation；禁止零 worker、零 capacity 和非法 ORT thread 参数。
+- `PipelineState`：Created → Running → Stopping → Stopped 的 single-use
+  lifecycle contract；停止幂等，析构自动 join。
+- 稳定 `ErrorCode` / `FailureStage`：任务结果和 preparation failure callback
+  都带 task ID、失败阶段、错误码和可读消息。
 - `PerformanceMetrics`：steady-clock duration samples 与 mean/min/max/p50/p90/p95/p99。
 - `VisionPipelineBenchmark`：warm-up、worker/queue/ORT threading 参数、吞吐和
   分阶段 latency observation。
 - `RepresentativeVisionBenchmark`：MobileNetV2 inference-only 与 end-to-end
   profiling，输出可追踪的 CSV aggregate rows。
 
-Stage 5 使用外部获取并校验的 MobileNetV2 artifact；模型不提交到 Git。
+Stage 5/6 使用外部获取并校验的 MobileNetV2 artifact；模型不提交到 Git。
 YOLO、GPU、GUI 和视频输入仍为后续 planned work。Stage 3
 使用 `std::thread`、`mutex` 与 `condition_variable` 实现应用层任务并发，
 不是对 ONNX Runtime 内部线程池的重复实现。Stage 4 的正式性能观测只使用
@@ -39,12 +46,45 @@ MSVC Release；Debug 仅用于正确性验证。
 ## Implemented Pipeline
 
 ```text
-Input → Preprocess → Bounded Task Queue → Inference Workers → InferenceEngine →
-Bounded Result Queue → Consumer
+Image source → Bounded preparation stage → Decode + preprocess workers →
+Bounded inference queue → Inference workers / ORT CPU → Bounded result queue →
+Consumer
 ```
 
 详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 和
-[docs/CONCURRENCY_PIPELINE.md](docs/CONCURRENCY_PIPELINE.md)。
+[docs/CONCURRENCY_PIPELINE.md](docs/CONCURRENCY_PIPELINE.md)。结果队列的正式
+使用顺序是：start → submit → 持续消费 → stop preparation → 继续消费 →
+stop inference。
+
+## Public API in one minute
+
+```cpp
+#include <memory>
+
+#include "vision/ImagePreprocessor.h"
+#include "vision/InferencePipeline.h"
+
+auto config = vision::PipelineConfig::portableDefault();
+if (!config.validate().isOk()) return 1;
+auto engine = std::make_shared<vision::InferenceEngine>("model.onnx", config);
+if (!engine->initialize().isOk()) return 1;
+
+vision::ImageTensor tensor;
+vision::ImagePreprocessor preprocessor;
+if (!preprocessor.preprocessFile("frame.jpg", tensor).isOk()) return 1;
+
+vision::InferencePipeline pipeline(engine, config);
+pipeline.start();
+pipeline.submit(vision::InferenceTask("frame-1", std::move(tensor)));
+while (auto result = pipeline.popResult()) {
+    if (result->taskId == "frame-1") break;
+}
+pipeline.stop();
+```
+
+`InferenceTask` and `PipelineResult` are move-owned values. `submit()` returns
+`false` when the pipeline is not Running or its queue has closed; inspect
+`PipelineResult::errorCode`, `failureStage`, and `error` for task failures.
 
 ## Technology Direction
 
@@ -147,6 +187,8 @@ OpenCV 4.12.0 的 core/imgproc/imgcodecs 与 JPEG/PNG codec；ONNX Runtime
 - [Stage 5 Performance](docs/STAGE_5_PERFORMANCE.md)
 - [Stage 6 Optimization](docs/STAGE_6_OPTIMIZATION.md)
 - [Stage 6 Representative Inputs](docs/REPRESENTATIVE_WORKLOAD_STAGE6.md)
+- [Stage 7 API Audit](docs/STAGE_7_API_AUDIT.md)
+- [Stage 7 Production Hardening](docs/STAGE_7_PRODUCTION_HARDENING.md)
 - [Project Learning Manual](docs/PROJECT_LEARNING_MANUAL.md)
 - [Models Policy](models/README.md)
 

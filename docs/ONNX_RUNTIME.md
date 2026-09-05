@@ -38,8 +38,9 @@ values.
 
 `InferenceEngine` owns an `Ort::Env` and an `Ort::Session` with RAII. The
 members are destroyed in reverse declaration order, so the session is released
-before the environment. Session options explicitly select sequential execution
-and one intra-op/inter-op thread for this single-thread stage.
+before the environment. Session options are supplied by `PipelineConfig`; the
+portable default selects sequential execution and one intra-op/inter-op thread.
+The Stage 6 measured profile also uses 1/1 while scaling application workers.
 
 The input `std::vector<float>` remains alive for the complete `Session::Run`
 call. ONNX Runtime output values are copied before the temporary `Ort::Value`
@@ -48,10 +49,12 @@ buffers.
 
 ## Metadata and Validation
 
-Initialization records input/output names and shapes through the allocator-owned
-name APIs, copying names into `std::string`. Runtime input shape validation
-accepts dynamic model dimensions but rejects rank mismatches, incompatible
-static dimensions, and data/shape size mismatches.
+Initialization records input/output names, shapes, and element types through
+the allocator-owned name APIs, copying names into `std::string`. Repeated
+initialization of a ready engine is rejected. Runtime input validation accepts
+dynamic model dimensions but rejects rank mismatches, incompatible static
+dimensions, non-float input types, and data/shape size mismatches. Failures
+expose `ErrorCode`, `FailureStage`, and a message through `Status`.
 
 ## Fixture and Tests
 
