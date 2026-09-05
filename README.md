@@ -36,7 +36,27 @@ Implemented 与 Planned。
 
 ## Build and Test
 
-要求：CMake 3.21+、Ninja 和 C++17 编译器。
+要求：CMake 3.21+、Ninja 和 C++17 编译器。Windows 主推荐环境是
+Visual Studio Community 2026 的 MSVC v145 x64；原有 MinGW presets 仅作为
+legacy/debug reference。
+
+MSVC Debug：
+
+```bash
+cmake --preset msvc-debug
+cmake --build --preset msvc-debug-build
+ctest --preset msvc-debug-test --output-on-failure
+```
+
+MSVC Release：
+
+```bash
+cmake --preset msvc-release
+cmake --build --preset msvc-release-build
+ctest --preset msvc-release-test --output-on-failure
+```
+
+Legacy Ninja/MinGW Debug：
 
 ```bash
 cmake --list-presets
@@ -55,9 +75,10 @@ ctest --preset release-test --output-on-failure
 
 ## Dependencies
 
-Stage 0 不强制查找 OpenCV 或 ONNX Runtime。当前本机依赖检查结果和后续安装
-方案记录在 [docs/STAGE_0_ENVIRONMENT.md](docs/STAGE_0_ENVIRONMENT.md)。不从
-随机网站下载二进制依赖。
+Stage 0.5 已验证本机 MSVC v145 x64 和官方 vcpkg 可用，但不安装或接入
+OpenCV/ONNX Runtime。当前依赖状态与 ABI 说明记录在
+[docs/STAGE_0_ENVIRONMENT.md](docs/STAGE_0_ENVIRONMENT.md)。不从随机网站下载
+二进制依赖。
 
 ## Documentation
 

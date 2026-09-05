@@ -54,7 +54,45 @@ configure → build → test → run application
 Each step has a different failure class. A compiler error is not a linker error;
 neither proves runtime dependency availability.
 
-## 9. Stage 0 Self-Test
+## 9. Windows Toolchain Alignment
+
+The recommended Windows toolchain is Visual Studio Community 2026 with the
+MSVC v145 x64 toolset and a Windows SDK. The project also keeps MinGW-w64 GCC
+8.1.0 presets as a legacy reference, but does not use GCC as the primary path.
+
+MSVC v145 is part of the modern MSVC v14 family, which provides useful binary
+compatibility for many prebuilt libraries. Compatibility is not automatic:
+the compiler/runtime family, x64 architecture, Debug/Release configuration,
+CRT linkage, and package build options still have to match. A future OpenCV or
+ONNX Runtime package must therefore pass real CMake configure, link, and
+runtime checks instead of being accepted based on a version label alone.
+
+The Windows SDK supplies headers, libraries, and deployment metadata used by
+the compiler and linker. vcpkg's `x64-windows` triplet expresses the target
+architecture and dynamic CRT choice for future dependencies; it is a package
+selection contract, not a guarantee that every binary is ABI-compatible.
+
+## 10. Stage 0.5 Self-Test
+
+1. Why is VS2026/MSVC v145 the primary Windows path while GCC 8.1 remains a
+   legacy reference?
+2. Why does MSVC v14 binary compatibility not guarantee every third-party
+   library will link or run correctly?
+3. What evidence proves a compiler is really being used by a CMake preset?
+4. What does the `x64-windows` vcpkg triplet select?
+5. Why should OpenCV/ONNX integration be verified by configure, link, and
+   runtime tests?
+
+### Three practice exercises
+
+1. Inspect a CMake configure log and identify the compiler ID, `cl.exe` path,
+   toolset, architecture, and selected Windows SDK.
+2. Given a prebuilt library, list the ABI facts to verify before linking it to
+   an MSVC x64 application.
+3. Compare the project’s MSVC and legacy MinGW presets and explain which
+   environment variables or generator choices determine the compiler.
+
+## 11. Stage 0 Self-Test
 
 1. What belongs in a public header versus a `.cpp` translation unit?
 2. Why should tests link `CppVisionCore` instead of compiling another copy?

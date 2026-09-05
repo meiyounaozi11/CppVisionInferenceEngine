@@ -20,6 +20,28 @@
         "CMAKE_BUILD_TYPE": "Release",
         "BUILD_TESTING": "ON"
       }
+    },
+    {
+      "name": "msvc-debug",
+      "displayName": "MSVC 2026 x64 Debug",
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "toolset": "v145",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "BUILD_TESTING": "ON"
+      }
+    },
+    {
+      "name": "msvc-release",
+      "displayName": "MSVC 2026 x64 Release",
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "toolset": "v145",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "BUILD_TESTING": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -30,6 +52,16 @@
     {
       "name": "release-build",
       "configurePreset": "release"
+    },
+    {
+      "name": "msvc-debug-build",
+      "configurePreset": "msvc-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "msvc-release-build",
+      "configurePreset": "msvc-release",
+      "configuration": "Release"
     }
   ],
   "testPresets": [
@@ -47,6 +79,30 @@
     {
       "name": "release-test",
       "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "msvc-debug-test",
+      "configurePreset": "msvc-debug",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": true
+      }
+    },
+    {
+      "name": "msvc-release-test",
+      "configurePreset": "msvc-release",
+      "configuration": "Release",
       "output": {
         "outputOnFailure": true
       },
