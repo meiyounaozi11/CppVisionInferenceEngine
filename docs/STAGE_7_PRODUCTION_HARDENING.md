@@ -152,7 +152,8 @@ leak proof.
 
 Fresh MSVC v145 x64 Debug and Release configurations both built successfully
 with OpenCV 4.12 and ONNX Runtime 1.29.0. All seven ordinary CTest targets
-passed in each configuration. The explicit 20-task Release Stage 6 smoke with
+passed in each configuration. The final 100-task Release Stage 6 smoke with
 MobileNetV2, decode/inference 4/4, capacities 2/4, and ORT 1/1 measured
-`66.8622 images/s`, versus the Stage 6 observation of approximately 66 and the
-Stage 5 serial baseline of 25.69; no material regression was observed.
+`68.0658 images/s` (a shorter 20-task run measured `66.8622 images/s`), versus
+the Stage 6 observation of approximately 66 and the Stage 5 serial baseline of
+25.69; no material regression was observed.
