@@ -6,8 +6,9 @@
 #include <mutex>
 #include <optional>
 #include <stdexcept>
+#include <utility>
 
-namespace vision {
+namespace vision::detail {
 
 template <typename T>
 class BoundedBlockingQueue {
@@ -81,11 +82,6 @@ public:
         return m_items.size();
     }
 
-    [[nodiscard]] bool empty() const
-    {
-        return size() == 0U;
-    }
-
 private:
     const std::size_t m_capacity;
     mutable std::mutex m_mutex;
@@ -95,4 +91,4 @@ private:
     bool m_closed = false;
 };
 
-} // namespace vision
+} // namespace vision::detail

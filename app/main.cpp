@@ -121,7 +121,11 @@ int main(int argc, char *argv[])
         std::size_t failed = 0;
         double inferenceMilliseconds = 0.0;
         if (repeat > 1U || workers > 1U || hasCapacity) {
-            vision::InferencePipeline pipeline(engine, workers, queueCapacity);
+            vision::PipelineConfig pipelineConfig = vision::PipelineConfig::portableDefault();
+            pipelineConfig.inferenceWorkers = workers;
+            pipelineConfig.inferenceQueueCapacity = queueCapacity;
+            pipelineConfig.resultQueueCapacity = queueCapacity;
+            vision::InferencePipeline pipeline(engine, pipelineConfig);
             if (!pipeline.start()) {
                 vision::logError("failed to start inference pipeline");
                 return 1;

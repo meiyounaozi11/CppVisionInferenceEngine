@@ -1,14 +1,16 @@
 #pragma once
 
-#include "vision/BoundedBlockingQueue.h"
 #include "vision/ImagePreprocessor.h"
 #include "vision/InferencePipeline.h"
+#include "vision/RuntimeConfig.h"
+#include "vision/detail/BoundedBlockingQueue.h"
 
 #include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <variant>
@@ -45,10 +47,22 @@ struct PreparationStats {
     std::size_t failed = 0;
 };
 
+struct PreparationFailure {
+    std::string taskId;
+    ErrorCode errorCode = ErrorCode::Unknown;
+    FailureStage failureStage = FailureStage::Unknown;
+    std::string message;
+};
+
 class ImagePreparationPipeline {
 public:
-    using FailureHandler = std::function<void(const std::string &, const std::string &)>;
+    using FailureHandler = std::function<void(const PreparationFailure &)>;
 
+    ImagePreparationPipeline(InferencePipeline &downstream,
+                             ImagePreprocessor preprocessor,
+                             PipelineConfig config = {},
+                             FailureHandler failureHandler = {});
+    [[deprecated("use PipelineConfig")]]
     ImagePreparationPipeline(InferencePipeline &downstream,
                              ImagePreprocessor preprocessor,
                              std::size_t workerCount,
@@ -62,17 +76,18 @@ public:
     [[nodiscard]] bool start();
     [[nodiscard]] bool submit(PreparationTask task);
     void stop() noexcept;
+    [[nodiscard]] PipelineState state() const noexcept;
     [[nodiscard]] bool isRunning() const noexcept;
     [[nodiscard]] PreparationStats stats() const noexcept;
     [[nodiscard]] std::vector<PreparationTiming> timings() const;
 
 private:
-    void workerLoop(std::size_t workerIndex);
+    void workerLoop(std::size_t workerIndex) noexcept;
     static Status decode(const PreparationTask &task, cv::Mat &image, double &fileReadMs, double &decodeMs);
 
     InferencePipeline &m_downstream;
     ImagePreprocessor m_preprocessor;
-    BoundedBlockingQueue<PreparationTask> m_source;
+    detail::BoundedBlockingQueue<PreparationTask> m_source;
     std::vector<std::thread> m_workers;
     std::vector<std::vector<PreparationTiming>> m_workerTimings;
     FailureHandler m_failureHandler;
@@ -82,8 +97,7 @@ private:
     std::atomic<std::size_t> m_failed{0};
     mutable std::mutex m_stateMutex;
     std::mutex m_stopMutex;
-    bool m_started = false;
-    bool m_running = false;
+    PipelineState m_state = PipelineState::Created;
 };
 
 } // namespace vision

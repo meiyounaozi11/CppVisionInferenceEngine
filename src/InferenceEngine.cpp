@@ -3,6 +3,7 @@
 #include "vision/Stopwatch.h"
 
 #include <filesystem>
+#include <exception>
 #include <numeric>
 #include <utility>
 
@@ -38,16 +39,11 @@ bool shapeMatches(const std::vector<std::int64_t> &expected,
     return true;
 }
 
-Status ortError(const Ort::Exception &exception)
-{
-    return Status::error(ErrorCode::Internal, exception.what());
-}
-
 } // namespace
 
-InferenceEngine::InferenceEngine(std::string modelPath, InferenceOptions options)
+InferenceEngine::InferenceEngine(std::string modelPath, PipelineConfig config)
     : m_modelPath(std::move(modelPath)),
-      m_options(options)
+      m_config(config)
 {
 }
 
@@ -59,22 +55,32 @@ InferenceEngine &InferenceEngine::operator=(InferenceEngine &&) noexcept = defau
 
 Status InferenceEngine::initialize()
 {
+    if (m_session) {
+        return Status::error(ErrorCode::InvalidLifecycle,
+                             "inference engine is already initialized",
+                             FailureStage::Lifecycle);
+    }
     if (m_modelPath.empty()) {
-        return Status::error(ErrorCode::InvalidArgument, "model path must not be empty");
+        return Status::error(ErrorCode::InvalidArgument,
+                             "model path must not be empty",
+                             FailureStage::ModelInitialization);
     }
     if (!std::filesystem::exists(m_modelPath)) {
-        return Status::error(ErrorCode::InvalidArgument, "model path does not exist: " + m_modelPath);
+        return Status::error(ErrorCode::NotFound,
+                             "model path does not exist: " + m_modelPath,
+                             FailureStage::ModelInitialization);
     }
-    if (m_options.intraOpThreads <= 0 || m_options.interOpThreads <= 0) {
+    if (m_config.ortIntraOpThreads <= 0 || m_config.ortInterOpThreads <= 0) {
         return Status::error(ErrorCode::InvalidArgument,
-                             "ORT thread counts must be positive");
+                             "ORT thread counts must be positive",
+                             FailureStage::Configuration);
     }
 
     try {
         m_env = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "CppVisionInferenceEngine");
         Ort::SessionOptions options;
-        options.SetIntraOpNumThreads(m_options.intraOpThreads);
-        options.SetInterOpNumThreads(m_options.interOpThreads);
+        options.SetIntraOpNumThreads(m_config.ortIntraOpThreads);
+        options.SetInterOpNumThreads(m_config.ortInterOpThreads);
         options.SetExecutionMode(ORT_SEQUENTIAL);
         options.SetGraphOptimizationLevel(ORT_ENABLE_BASIC);
 #ifdef _WIN32
@@ -91,23 +97,37 @@ Status InferenceEngine::initialize()
         for (std::size_t index = 0; index < inputCount; ++index) {
             auto name = m_session->GetInputNameAllocated(index, allocator);
             const auto shape = m_session->GetInputTypeInfo(index).GetTensorTypeAndShapeInfo().GetShape();
-            m_inputs.push_back({name.get(), shape});
+            const auto elementType
+                = m_session->GetInputTypeInfo(index).GetTensorTypeAndShapeInfo().GetElementType();
+            m_inputs.push_back({name.get(), shape, static_cast<std::int32_t>(elementType)});
         }
         const std::size_t outputCount = m_session->GetOutputCount();
         for (std::size_t index = 0; index < outputCount; ++index) {
             auto name = m_session->GetOutputNameAllocated(index, allocator);
             const auto shape = m_session->GetOutputTypeInfo(index).GetTensorTypeAndShapeInfo().GetShape();
-            m_outputs.push_back({name.get(), shape});
+            const auto elementType
+                = m_session->GetOutputTypeInfo(index).GetTensorTypeAndShapeInfo().GetElementType();
+            m_outputs.push_back({name.get(), shape, static_cast<std::int32_t>(elementType)});
         }
         if (m_inputs.empty() || m_outputs.empty()) {
             m_session.reset();
             m_env.reset();
-            return Status::error(ErrorCode::Internal, "model must expose at least one input and output");
+            return Status::error(ErrorCode::InvalidModel,
+                                 "model must expose at least one input and output",
+                                 FailureStage::ModelInitialization);
         }
     } catch (const Ort::Exception &exception) {
         m_session.reset();
         m_env.reset();
-        return ortError(exception);
+        return Status::error(ErrorCode::InvalidModel,
+                             exception.what(),
+                             FailureStage::ModelInitialization);
+    } catch (const std::exception &exception) {
+        m_session.reset();
+        m_env.reset();
+        return Status::error(ErrorCode::Internal,
+                             exception.what(),
+                             FailureStage::ModelInitialization);
     }
     return Status::ok();
 }
@@ -135,15 +155,26 @@ const std::vector<TensorMetadata> &InferenceEngine::outputs() const noexcept
 Status InferenceEngine::run(const ImageTensor &input, InferenceResult &result) const
 {
     if (!m_session || m_inputs.empty()) {
-        return Status::error(ErrorCode::Internal, "inference session is not initialized");
+        return Status::error(ErrorCode::InvalidLifecycle,
+                             "inference session is not initialized",
+                             FailureStage::Lifecycle);
     }
     const std::vector<std::int64_t> actualShape(input.shape.begin(), input.shape.end());
+    if (m_inputs.front().elementType != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+        return Status::error(ErrorCode::InvalidTensor,
+                             "model input tensor type is not float",
+                             FailureStage::TensorValidation);
+    }
     if (!shapeMatches(m_inputs.front().shape, actualShape)) {
-        return Status::error(ErrorCode::InvalidArgument, "input tensor shape does not match model input");
+        return Status::error(ErrorCode::InvalidTensor,
+                             "input tensor shape does not match model input",
+                             FailureStage::TensorValidation);
     }
     const std::size_t expectedElements = elementCount(actualShape);
     if (expectedElements == 0 || input.data.size() != expectedElements) {
-        return Status::error(ErrorCode::InvalidArgument, "input tensor data size does not match shape");
+        return Status::error(ErrorCode::InvalidTensor,
+                             "input tensor data size does not match shape",
+                             FailureStage::TensorValidation);
     }
 
     try {
@@ -171,20 +202,35 @@ Status InferenceEngine::run(const ImageTensor &input, InferenceResult &result) c
         calculated.outputs.reserve(outputs.size());
         for (std::size_t index = 0; index < outputs.size(); ++index) {
             if (!outputs[index].IsTensor()) {
-                return Status::error(ErrorCode::Internal, "model output is not a tensor");
+                return Status::error(ErrorCode::InferenceFailed,
+                                     "model output is not a tensor",
+                                     FailureStage::ResultMaterialization);
             }
             const auto info = outputs[index].GetTensorTypeAndShapeInfo();
             if (info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
-                return Status::error(ErrorCode::Internal, "model output tensor is not float");
+                return Status::error(ErrorCode::InferenceFailed,
+                                     "model output tensor is not float",
+                                     FailureStage::ResultMaterialization);
             }
             const auto shape = info.GetShape();
             const float *data = outputs[index].GetTensorData<float>();
             const std::size_t count = elementCount(shape);
+            if (count == 0U) {
+                return Status::error(ErrorCode::InferenceFailed,
+                                     "model output tensor has an invalid shape",
+                                     FailureStage::ResultMaterialization);
+            }
             calculated.outputs.push_back({m_outputs[index].name, shape, {data, data + count}});
         }
         result = std::move(calculated);
     } catch (const Ort::Exception &exception) {
-        return ortError(exception);
+        return Status::error(ErrorCode::InferenceFailed,
+                             exception.what(),
+                             FailureStage::Inference);
+    } catch (const std::exception &exception) {
+        return Status::error(ErrorCode::InferenceFailed,
+                             exception.what(),
+                             FailureStage::ResultMaterialization);
     }
     return Status::ok();
 }

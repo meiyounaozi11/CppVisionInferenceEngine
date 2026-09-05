@@ -1,7 +1,8 @@
 #pragma once
 
-#include "vision/BoundedBlockingQueue.h"
+#include "vision/detail/BoundedBlockingQueue.h"
 #include "vision/InferenceEngine.h"
+#include "vision/RuntimeConfig.h"
 
 #include <atomic>
 #include <chrono>
@@ -47,6 +48,8 @@ enum class PipelineResultStatus {
 struct PipelineResult {
     std::string taskId;
     PipelineResultStatus status = PipelineResultStatus::Failed;
+    ErrorCode errorCode = ErrorCode::None;
+    FailureStage failureStage = FailureStage::None;
     std::optional<InferenceResult> inference;
     std::string error;
     double elapsedMilliseconds = 0.0;
@@ -76,14 +79,22 @@ class InferencePipeline {
 public:
     using Processor = std::function<PipelineResult(InferenceTask &&)>;
 
+    InferencePipeline(Processor processor, PipelineConfig config = {});
+    InferencePipeline(std::shared_ptr<const InferenceEngine> engine, PipelineConfig config = {});
+    // Compatibility overloads for Stage 3-6 clients. New callers should use
+    // PipelineConfig so queue and worker ownership is named at the call site.
+    [[deprecated("use PipelineConfig")]]
     InferencePipeline(Processor processor, std::size_t workerCount, std::size_t queueCapacity);
+    [[deprecated("use PipelineConfig")]]
     InferencePipeline(Processor processor,
                       std::size_t workerCount,
                       std::size_t inputQueueCapacity,
                       std::size_t resultQueueCapacity);
+    [[deprecated("use PipelineConfig")]]
     InferencePipeline(std::shared_ptr<const InferenceEngine> engine,
                       std::size_t workerCount,
                       std::size_t queueCapacity);
+    [[deprecated("use PipelineConfig")]]
     InferencePipeline(std::shared_ptr<const InferenceEngine> engine,
                       std::size_t workerCount,
                       std::size_t inputQueueCapacity,
@@ -98,16 +109,18 @@ public:
     [[nodiscard]] std::optional<PipelineResult> popResult();
     void stop() noexcept;
 
-    [[nodiscard]] bool isRunning() const;
+    [[nodiscard]] PipelineState state() const noexcept;
+    [[nodiscard]] bool isRunning() const noexcept;
     [[nodiscard]] PipelineStats stats() const noexcept;
 
 private:
-    void workerLoop();
+    void workerLoop() noexcept;
+    void workerLoopBody();
     static PipelineResult processWithEngine(const std::shared_ptr<const InferenceEngine> &engine,
                                             InferenceTask &&task);
 
-    BoundedBlockingQueue<InferenceTask> m_tasks;
-    BoundedBlockingQueue<PipelineResult> m_results;
+    detail::BoundedBlockingQueue<InferenceTask> m_tasks;
+    detail::BoundedBlockingQueue<PipelineResult> m_results;
     Processor m_processor;
     std::vector<std::thread> m_workers;
     std::atomic<std::size_t> m_remainingWorkers{0};
@@ -117,8 +130,7 @@ private:
     std::atomic<std::size_t> m_active{0};
     mutable std::mutex m_stateMutex;
     std::mutex m_stopMutex;
-    bool m_started = false;
-    bool m_running = false;
+    PipelineState m_state = PipelineState::Created;
 };
 
 } // namespace vision

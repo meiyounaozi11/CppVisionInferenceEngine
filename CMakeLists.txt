@@ -17,11 +17,13 @@ set(CPPVISION_CORE_SOURCES
     include/vision/Logging.h
     include/vision/ImageTensor.h
     include/vision/Status.h
+    include/vision/RuntimeConfig.h
     include/vision/Stopwatch.h
     include/vision/TaskMetadata.h
     include/vision/PerformanceMetrics.h
     src/Logging.cpp
     src/Status.cpp
+    src/RuntimeConfig.cpp
     src/Stopwatch.cpp
     src/TaskMetadata.cpp
     src/PerformanceMetrics.cpp
@@ -59,7 +61,7 @@ if(VISION_ENABLE_ONNXRUNTIME)
     list(APPEND CPPVISION_CORE_SOURCES
         include/vision/InferenceEngine.h
         src/InferenceEngine.cpp
-        include/vision/BoundedBlockingQueue.h
+        include/vision/detail/BoundedBlockingQueue.h
         include/vision/InferencePipeline.h
         src/InferencePipeline.cpp
         include/vision/ImagePreparationPipeline.h
@@ -126,6 +128,10 @@ if(VISION_ENABLE_ONNXRUNTIME AND VISION_ENABLE_OPENCV)
         app/stage6_optimization_benchmark.cpp
     )
 
+    add_executable(vision_soak_test
+        app/vision_soak_test.cpp
+    )
+
     target_link_libraries(RepresentativeVisionBenchmark
         PRIVATE
             CppVisionCore
@@ -137,6 +143,10 @@ if(VISION_ENABLE_ONNXRUNTIME AND VISION_ENABLE_OPENCV)
     )
 
     target_link_libraries(Stage6OptimizationBenchmark PRIVATE CppVisionCore)
+    target_link_libraries(vision_soak_test PRIVATE CppVisionCore)
+    if(WIN32)
+        target_link_libraries(vision_soak_test PRIVATE Psapi)
+    endif()
 
     add_custom_command(TARGET VisionPipelineBenchmark POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -188,6 +198,7 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME PerformanceMetricsTests COMMAND PerformanceMetricsTests)
+    set_tests_properties(VisionCoreTests PerformanceMetricsTests PROPERTIES LABELS "unit")
 
     if(VISION_ENABLE_OPENCV)
         add_executable(ImagePreprocessorTests
@@ -205,6 +216,7 @@ if(BUILD_TESTING)
         )
 
         add_test(NAME ImagePreprocessorTests COMMAND ImagePreprocessorTests)
+        set_tests_properties(ImagePreprocessorTests PROPERTIES LABELS "unit")
     endif()
 
     if(VISION_ENABLE_ONNXRUNTIME AND VISION_ENABLE_OPENCV)
@@ -233,6 +245,7 @@ if(BUILD_TESTING)
         )
 
         add_test(NAME InferenceEngineTests COMMAND InferenceEngineTests)
+        set_tests_properties(InferenceEngineTests PROPERTIES LABELS "integration")
 
         add_executable(ConcurrencyPipelineTests
             tests/ConcurrencyPipelineTests.cpp
@@ -249,12 +262,38 @@ if(BUILD_TESTING)
         )
 
         add_test(NAME ConcurrencyPipelineTests COMMAND ConcurrencyPipelineTests)
+        set_tests_properties(ConcurrencyPipelineTests PROPERTIES LABELS "integration;stress")
 
         add_executable(ImagePreparationPipelineTests
             tests/ImagePreparationPipelineTests.cpp
         )
         target_link_libraries(ImagePreparationPipelineTests PRIVATE CppVisionCore)
         add_test(NAME ImagePreparationPipelineTests COMMAND ImagePreparationPipelineTests)
+        set_tests_properties(ImagePreparationPipelineTests PROPERTIES LABELS "integration")
+
+        add_executable(ProductionHardeningTests
+            tests/ProductionHardeningTests.cpp
+        )
+        target_link_libraries(ProductionHardeningTests PRIVATE CppVisionCore)
+        add_custom_command(TARGET ProductionHardeningTests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
+                "$<TARGET_FILE_DIR:ProductionHardeningTests>/onnxruntime.dll"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
+                "$<TARGET_FILE_DIR:ProductionHardeningTests>/onnxruntime_providers_shared.dll"
+        )
+        add_test(NAME ProductionHardeningTests COMMAND ProductionHardeningTests)
+        set_tests_properties(ProductionHardeningTests PROPERTIES LABELS "integration;stress")
+
+        add_custom_command(TARGET vision_soak_test POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
+                "$<TARGET_FILE_DIR:vision_soak_test>/onnxruntime.dll"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
+                "$<TARGET_FILE_DIR:vision_soak_test>/onnxruntime_providers_shared.dll"
+        )
 
         if(VISION_STAGE5_MODEL_PATH AND EXISTS "${VISION_STAGE5_MODEL_PATH}")
             add_executable(RepresentativeModelInferenceTest

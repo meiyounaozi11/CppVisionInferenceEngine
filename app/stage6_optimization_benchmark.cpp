@@ -36,7 +36,16 @@ int main(int argc, char **argv) {
     const Args a = parse(argc, argv);
     if (a.model.empty() || a.image.empty() || (a.mode != "disk" && a.mode != "memory")) { std::cerr << "usage: --model <onnx> --image <image> [--mode disk|memory] [--decode-workers N] [--inference-workers N] [--input-capacity N] [--result-capacity N] [--repeat N] [--warmup N] [--ort-intra N] [--ort-inter N] [--csv path]\n"; return 2; }
     try {
-        auto engine = std::make_shared<vision::InferenceEngine>(a.model, vision::InferenceOptions{a.intra,a.inter});
+        vision::PipelineConfig pipelineConfig = vision::PipelineConfig::portableDefault();
+        pipelineConfig.decodeWorkers = a.decodeWorkers;
+        pipelineConfig.inferenceWorkers = a.inferenceWorkers;
+        pipelineConfig.preparationQueueCapacity = a.inputCapacity;
+        pipelineConfig.inferenceQueueCapacity = a.inputCapacity;
+        pipelineConfig.resultQueueCapacity = a.resultCapacity;
+        pipelineConfig.ortIntraOpThreads = a.intra;
+        pipelineConfig.ortInterOpThreads = a.inter;
+        if (!pipelineConfig.validate().isOk()) { std::cerr << "invalid pipeline configuration\n"; return 2; }
+        auto engine = std::make_shared<vision::InferenceEngine>(a.model, pipelineConfig);
         if (!engine->initialize().isOk()) { std::cerr << "model initialization failed\n"; return 3; }
         vision::PreprocessConfig config;
         vision::ImagePreprocessor preprocessor(config);
@@ -49,13 +58,12 @@ int main(int argc, char **argv) {
             cv::Mat image = a.mode == "memory" ? cv::imdecode(*bytes, cv::IMREAD_COLOR) : cv::imread(a.image, cv::IMREAD_COLOR);
             vision::ImageTensor tensor; if (preprocessor.preprocess(image,tensor).isOk()) { vision::InferenceResult out; static_cast<void>(engine->run(tensor,out)); }
         }
-        vision::InferencePipeline pipeline(engine,a.inferenceWorkers,a.inputCapacity,a.resultCapacity);
+        vision::InferencePipeline pipeline(engine,pipelineConfig);
         if (!pipeline.start()) throw std::runtime_error("inference pipeline failed to start");
         std::set<std::string> resultIds; vision::PerformanceMetrics metrics; std::size_t completed=0, failed=0;
-        std::atomic<bool> consume{true};
-        std::thread consumer([&] { while (consume) { auto result=pipeline.popResult(); if (!result) break; resultIds.insert(result->taskId); vision::PerformanceSample sample; sample.endToEndMilliseconds=result->endToEndMilliseconds; sample.totalEndToEndMilliseconds=result->totalEndToEndMilliseconds; sample.inputQueueWaitMilliseconds=result->inputQueueWaitMilliseconds; sample.workerServiceMilliseconds=result->workerServiceMilliseconds; sample.inferenceMilliseconds=result->inference ? result->inference->elapsedMilliseconds : 0.0; sample.resultQueueWaitMilliseconds=result->resultQueueWaitMilliseconds; sample.preprocessMilliseconds=result->preprocessMilliseconds; sample.resultHandlingMilliseconds=result->resultHandlingMilliseconds; metrics.add(sample); if(result->status==vision::PipelineResultStatus::Success) ++completed; else ++failed; } });
-        auto failure = [](const std::string &, const std::string &) {};
-        vision::ImagePreparationPipeline prep(pipeline,preprocessor,a.decodeWorkers,a.inputCapacity,failure);
+        std::thread consumer([&] { while (auto result = pipeline.popResult()) { resultIds.insert(result->taskId); vision::PerformanceSample sample; sample.endToEndMilliseconds=result->endToEndMilliseconds; sample.totalEndToEndMilliseconds=result->totalEndToEndMilliseconds; sample.inputQueueWaitMilliseconds=result->inputQueueWaitMilliseconds; sample.workerServiceMilliseconds=result->workerServiceMilliseconds; sample.inferenceMilliseconds=result->inference ? result->inference->elapsedMilliseconds : 0.0; sample.resultQueueWaitMilliseconds=result->resultQueueWaitMilliseconds; sample.preprocessMilliseconds=result->preprocessMilliseconds; sample.resultHandlingMilliseconds=result->resultHandlingMilliseconds; metrics.add(sample); if(result->status==vision::PipelineResultStatus::Success) ++completed; else ++failed; } });
+        auto failure = [](const vision::PreparationFailure &) {};
+        vision::ImagePreparationPipeline prep(pipeline,preprocessor,pipelineConfig,failure);
         if (!prep.start()) throw std::runtime_error("preparation pipeline failed to start"); const auto wallStart=std::chrono::steady_clock::now();
         for (std::size_t i=0;i<a.repeat;++i) {
             vision::PreparationTask task = a.mode == "memory"
@@ -63,7 +71,7 @@ int main(int argc, char **argv) {
                 : vision::PreparationTask("stage6-" + std::to_string(i), a.image);
             if (!prep.submit(std::move(task))) break;
         }
-        prep.stop(); pipeline.stop(); consume=false; consumer.join();
+        prep.stop(); pipeline.stop(); consumer.join();
         const double wall=std::chrono::duration<double>(std::chrono::steady_clock::now()-wallStart).count();
         const auto ps=prep.stats(); const auto summary=metrics.endToEndSummary(); const auto timings=prep.timings();
         const double throughput = wall>0 ? static_cast<double>(completed)/wall : 0;

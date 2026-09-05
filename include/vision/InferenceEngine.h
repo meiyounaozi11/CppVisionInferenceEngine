@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vision/ImageTensor.h"
+#include "vision/RuntimeConfig.h"
 #include "vision/Status.h"
 
 #include <cstdint>
@@ -15,6 +16,7 @@ namespace vision {
 struct TensorMetadata {
     std::string name;
     std::vector<std::int64_t> shape;
+    std::int32_t elementType = 0;
 };
 
 struct InferenceTensor {
@@ -28,14 +30,9 @@ struct InferenceResult {
     double elapsedMilliseconds = 0.0;
 };
 
-struct InferenceOptions {
-    int intraOpThreads = 1;
-    int interOpThreads = 1;
-};
-
 class InferenceEngine {
 public:
-    explicit InferenceEngine(std::string modelPath, InferenceOptions options = {});
+    explicit InferenceEngine(std::string modelPath, PipelineConfig config = {});
     ~InferenceEngine();
 
     InferenceEngine(InferenceEngine &&) noexcept;
@@ -57,7 +54,7 @@ public:
 
 private:
     std::string m_modelPath;
-    InferenceOptions m_options;
+    PipelineConfig m_config;
     std::unique_ptr<Ort::Env> m_env;
     std::unique_ptr<Ort::Session> m_session;
     std::vector<TensorMetadata> m_inputs;

@@ -123,8 +123,13 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    auto engine = std::make_shared<vision::InferenceEngine>(
-        modelPath, vision::InferenceOptions{intra, inter});
+    vision::PipelineConfig pipelineConfig = vision::PipelineConfig::portableDefault();
+    pipelineConfig.inferenceWorkers = workers;
+    pipelineConfig.inferenceQueueCapacity = inputCapacity;
+    pipelineConfig.resultQueueCapacity = resultCapacity;
+    pipelineConfig.ortIntraOpThreads = intra;
+    pipelineConfig.ortInterOpThreads = inter;
+    auto engine = std::make_shared<vision::InferenceEngine>(modelPath, pipelineConfig);
     const vision::Status modelStatus = engine->initialize();
     if (!modelStatus.isOk()) {
         std::cerr << modelStatus.message() << '\n';
@@ -156,7 +161,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    vision::InferencePipeline pipeline(engine, workers, inputCapacity, resultCapacity);
+    vision::InferencePipeline pipeline(engine, pipelineConfig);
     if (!pipeline.start()) {
         std::cerr << "failed to start pipeline\n";
         return 1;
