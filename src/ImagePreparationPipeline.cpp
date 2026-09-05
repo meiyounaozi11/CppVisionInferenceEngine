@@ -108,7 +108,9 @@ Status ImagePreparationPipeline::decode(const PreparationTask &task,
         if (!input) return Status::error(ErrorCode::InvalidArgument, "image file read failed: " + *path);
         fileReadMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - readStart).count();
     } else {
-        const auto &sharedBytes = *std::get<std::shared_ptr<const std::vector<unsigned char>>>(task.source);
+        const auto &bytesOwner = std::get<std::shared_ptr<const std::vector<unsigned char>>>(task.source);
+        if (!bytesOwner) return Status::error(ErrorCode::InvalidArgument, "compressed image buffer is null");
+        const auto &sharedBytes = *bytesOwner;
         bytes.assign(sharedBytes.begin(), sharedBytes.end());
     }
     image = cv::imdecode(bytes, cv::IMREAD_COLOR);
