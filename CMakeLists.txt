@@ -62,6 +62,8 @@ if(VISION_ENABLE_ONNXRUNTIME)
         include/vision/BoundedBlockingQueue.h
         include/vision/InferencePipeline.h
         src/InferencePipeline.cpp
+        include/vision/ImagePreparationPipeline.h
+        src/ImagePreparationPipeline.cpp
     )
 endif()
 
@@ -120,6 +122,10 @@ if(VISION_ENABLE_ONNXRUNTIME AND VISION_ENABLE_OPENCV)
         app/representative_benchmark.cpp
     )
 
+    add_executable(Stage6OptimizationBenchmark
+        app/stage6_optimization_benchmark.cpp
+    )
+
     target_link_libraries(RepresentativeVisionBenchmark
         PRIVATE
             CppVisionCore
@@ -129,6 +135,8 @@ if(VISION_ENABLE_ONNXRUNTIME AND VISION_ENABLE_OPENCV)
         PRIVATE
             CppVisionCore
     )
+
+    target_link_libraries(Stage6OptimizationBenchmark PRIVATE CppVisionCore)
 
     add_custom_command(TARGET VisionPipelineBenchmark POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -146,6 +154,15 @@ if(VISION_ENABLE_ONNXRUNTIME AND VISION_ENABLE_OPENCV)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
             "$<TARGET_FILE_DIR:RepresentativeVisionBenchmark>/onnxruntime_providers_shared.dll"
+    )
+
+    add_custom_command(TARGET Stage6OptimizationBenchmark POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${ONNXRUNTIME_ROOT}/lib/onnxruntime.dll"
+            "$<TARGET_FILE_DIR:Stage6OptimizationBenchmark>/onnxruntime.dll"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${ONNXRUNTIME_ROOT}/lib/onnxruntime_providers_shared.dll"
+            "$<TARGET_FILE_DIR:Stage6OptimizationBenchmark>/onnxruntime_providers_shared.dll"
     )
 endif()
 
@@ -232,6 +249,12 @@ if(BUILD_TESTING)
         )
 
         add_test(NAME ConcurrencyPipelineTests COMMAND ConcurrencyPipelineTests)
+
+        add_executable(ImagePreparationPipelineTests
+            tests/ImagePreparationPipelineTests.cpp
+        )
+        target_link_libraries(ImagePreparationPipelineTests PRIVATE CppVisionCore)
+        add_test(NAME ImagePreparationPipelineTests COMMAND ImagePreparationPipelineTests)
 
         if(VISION_STAGE5_MODEL_PATH AND EXISTS "${VISION_STAGE5_MODEL_PATH}")
             add_executable(RepresentativeModelInferenceTest

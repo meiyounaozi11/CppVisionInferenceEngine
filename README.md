@@ -145,5 +145,14 @@ OpenCV 4.12.0 的 core/imgproc/imgcodecs 与 JPEG/PNG codec；ONNX Runtime
 - [Representative Workload](docs/REPRESENTATIVE_WORKLOAD.md)
 - [Stage 5 Plan](docs/STAGE_5_PLAN.md)
 - [Stage 5 Performance](docs/STAGE_5_PERFORMANCE.md)
+- [Stage 6 Optimization](docs/STAGE_6_OPTIMIZATION.md)
+- [Stage 6 Representative Inputs](docs/REPRESENTATIVE_WORKLOAD_STAGE6.md)
 - [Project Learning Manual](docs/PROJECT_LEARNING_MANUAL.md)
 - [Models Policy](models/README.md)
+
+## Stage 6 preparation benchmark
+
+The optional `Stage6OptimizationBenchmark` separates file read, JPEG decode,
+preprocessing, and inference using a bounded decode+preprocess stage. Build the
+MSVC Release preset, then run `scripts/run_stage6_benchmarks.ps1`. Results are
+observations for the selected machine and workload, not universal benchmarks.

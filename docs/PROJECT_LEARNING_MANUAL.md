@@ -356,3 +356,39 @@ configuration and repeated-run evidence without committing large traces.
    execution, result publication, and consumer retrieval.
 3. Design a CSV schema that preserves model, mode, worker, queue, ORT settings,
    throughput, percentiles, and failure accounting without per-task traces.
+
+## Stage 6 — Targeted end-to-end optimization
+
+Stage 5 showed why a pipeline can process over 200 ready tensors/s while a
+serial file/JPEG producer supplies only about 25 images/s. Stage 6 separates
+file I/O, JPEG decode, preprocessing, and inference with a bounded
+`ImagePreparationPipeline`. Decode workers own local `cv::Mat` values and move
+`ImageTensor` into the existing bounded inference queue; the result queue and
+its continuous-consumer shutdown contract are unchanged.
+
+Key ideas: pipeline starvation, stage balancing, bounded buffering,
+backpressure across stages, I/O versus compute, JPEG decode cost, and CPU
+oversubscription. A second image is a workload variation, not a claim of model
+accuracy. Release measurements must use warm-up and repeated runs; Debug is
+for correctness only.
+
+### Stage 6 self-test
+
+1. Why did adding inference workers not improve Stage 5 end-to-end throughput?
+2. What is the difference between file read, JPEG decode, and preprocessing?
+3. Why must the preparation source queue remain bounded?
+4. Which ownership crosses from a decode worker into an inference task?
+5. Why are task IDs needed when decode completion is out of order?
+6. How can more decode workers cause CPU oversubscription?
+7. Why must preparation workers be joined before stopping inference?
+8. Why is a memory-backed JPEG mode useful without replacing disk-backed data?
+9. What evidence would justify retaining a parallel decode stage?
+10. Why is the Stage 3 bounded result-queue contract intentionally unchanged?
+
+### Three practice exercises
+
+1. Draw the before/after critical paths and mark every bounded queue.
+2. Implement a small decode-worker accounting record with file-read, decode,
+   and preprocessing durations.
+3. Given baseline and optimized CSV rows, calculate speedup, p95 change, and
+   approximate in-flight memory for a selected configuration.

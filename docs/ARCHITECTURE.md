@@ -61,6 +61,11 @@ Result
   coverage and metrics aggregation checks sharing the same production core.
 - `RepresentativeModelInferenceTest`: optional external-artifact correctness
   coverage, enabled when `VISION_STAGE5_MODEL_PATH` points to a verified model.
+- `ImagePreparationPipeline`: bounded file/byte decode and preprocessing stage
+  feeding `InferencePipeline`; workers own decode temporaries and move tensors
+  into inference tasks.
+- `Stage6OptimizationBenchmark`: disk-backed and memory-backed end-to-end
+  measurements with decode-worker scaling and stage timing output.
 
 ## Future Boundaries
 
