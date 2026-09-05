@@ -72,11 +72,11 @@ The end-to-end mode decodes and preprocesses each image before submitting it.
 The producer is intentionally serial, so increasing pipeline workers does not
 parallelize image decode.
 
-| workers | throughput/s | total end-to-end mean ms | decode mean ms | preprocess mean ms | accepted-to-consumed mean ms | ORT mean ms |
+| workers | throughput/s | total end-to-end mean ms | decode mean ms | preprocess mean ms | accepted mean / p50 / p95 ms | ORT mean ms |
 |---:|---:|---:|---:|---:|---:|---:|
-| 1 | 25.69 | 54.70 | 36.80 | 0.64 | 18.09 | 16.56 |
-| 2 | 25.55 | 55.04 | 36.85 | 0.68 | 18.08 | 16.70 |
-| 4 | 25.48 | 55.26 | 37.04 | 0.65 | 18.09 | 16.84 |
+| 1 | 25.69 | 54.70 | 36.80 | 0.64 | 16.62 / 16.60 / 17.39 | 16.56 |
+| 2 | 25.55 | 55.04 | 36.85 | 0.68 | 16.75 / 16.58 / 17.55 | 16.70 |
+| 4 | 25.48 | 55.26 | 37.04 | 0.65 | 16.90 / 16.75 / 17.85 | 16.84 |
 
 Decode dominates this serial end-to-end path; worker scaling cannot improve it
 until acquisition/decoding is made concurrent, which is outside Stage 5.
