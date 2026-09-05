@@ -80,6 +80,10 @@ target_include_directories(CppVisionCore
 
 target_compile_features(CppVisionCore PUBLIC cxx_std_17)
 
+if(MSVC)
+    target_compile_options(CppVisionCore PUBLIC /EHsc)
+endif()
+
 if(VISION_ENABLE_OPENCV)
     target_compile_definitions(CppVisionCore PUBLIC VISION_ENABLE_OPENCV=1)
     target_link_libraries(CppVisionCore

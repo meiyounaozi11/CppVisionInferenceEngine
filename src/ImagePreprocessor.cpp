@@ -82,8 +82,9 @@ Status ImagePreprocessor::preprocess(const cv::Mat &image, ImageTensor &output) 
                 const cv::Vec3f pixel = floatRgb.at<cv::Vec3f>(y, x);
                 const std::size_t offset = static_cast<std::size_t>(y) * m_config.outputWidth + x;
                 for (std::size_t channel = 0; channel < 3U; ++channel) {
+                    const int channelIndex = static_cast<int>(channel);
                     result.data[channel * planeSize + offset]
-                        = (pixel[channel] - m_config.mean[channel]) / m_config.stddev[channel];
+                        = (pixel[channelIndex] - m_config.mean[channel]) / m_config.stddev[channel];
                 }
             }
         }
